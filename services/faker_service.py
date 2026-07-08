@@ -1,4 +1,5 @@
 from faker import Faker
+
 # Initialize Faker with Indian locale
 fake = Faker("en_IN")
 

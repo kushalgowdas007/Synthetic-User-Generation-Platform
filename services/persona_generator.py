@@ -6,15 +6,14 @@ from typing import List
 # Import your API key configuration safely
 from config.settings import GEMINI_API_KEY
 
-# =====================================================================
-# 1. Define the exact JSON structure using Pydantic
-# =====================================================================
+
 class PsychologicalProfile(BaseModel):
     motivation: str
     values: str
     decision_style: str
     risk_tolerance: str
     emotional_traits: str
+
 
 class BehaviorPattern(BaseModel):
     shopping: str
@@ -23,12 +22,14 @@ class BehaviorPattern(BaseModel):
     daily_routine: str
     brand_loyalty: str
 
+
 class BigFivePersonality(BaseModel):
     openness: str
     conscientiousness: str
     extraversion: str
     agreeableness: str
     neuroticism: str
+
 
 class PersonaSchema(BaseModel):
     name: str
@@ -46,17 +47,13 @@ class PersonaSchema(BaseModel):
     behavior_pattern: BehaviorPattern
     big_five_personality: BigFivePersonality
 
-# This wraps them into a top-level container array
+
 class PersonaListContainer(BaseModel):
     personas: List[PersonaSchema]
 
 
-# =====================================================================
-# 2. Refactored Generator Class
-# =====================================================================
 class PersonaGenerator:
     def __init__(self):
-        
         self.client = genai.Client(api_key=GEMINI_API_KEY)
 
     def generate_personas(
@@ -83,21 +80,18 @@ Target Criteria to base the generation on:
 """
 
         try:
-            # Call the consolidated client using explicit schema parsing constraints
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",
                     "response_schema": PersonaListContainer,
-                    "temperature": 0.7 
+                    "temperature": 0.7
                 }
             )
-            
-            # Extract raw stringified JSON directly from response object
+
             raw_data = json.loads(response.text)
-            
-            # Return just the array of personas back to app.py
+
             return raw_data.get("personas", [])
 
         except Exception as e:

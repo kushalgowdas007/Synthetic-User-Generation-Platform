@@ -1,0 +1,139 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="q9X1qEqKX1VBJqJCrHvi">
+    <mxGraphModel dx="1030" dy="562" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ZZWjt2aflis_Rd12slLH-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="User" vertex="1">
+          <mxGeometry height="30" width="120" x="330" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-3" edge="1" parent="1" source="ZZWjt2aflis_Rd12slLH-2" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="350" y="70" as="sourcePoint" />
+            <mxPoint x="390" y="100" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&#xa;Streamlit Experiment Workspace&#xa;&#xa;" vertex="1">
+          <mxGeometry height="30" width="180" x="300" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-5" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="389.5" y="140" as="sourcePoint" />
+            <mxPoint x="389.5" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&#xa;Experiment Controller&#xa;&#xa;" vertex="1">
+          <mxGeometry height="30" width="190" x="295" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-8" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="389.5" y="210" />
+              <mxPoint x="389.5" y="210" />
+            </Array>
+            <mxPoint x="389.5" y="240" as="sourcePoint" />
+            <mxPoint x="390" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-9" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="240" />
+            </Array>
+            <mxPoint x="300" y="240" as="sourcePoint" />
+            <mxPoint x="480" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-11" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="480" y="240" as="sourcePoint" />
+            <mxPoint x="480" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-12" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="300" y="240" as="sourcePoint" />
+            <mxPoint x="300" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&#xa;Persona Generation Agent&#xa;&#xa;" vertex="1">
+          <mxGeometry height="40" width="180" x="190" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&#xa;Experiment Manager&#xa;&#xa;" vertex="1">
+          <mxGeometry height="40" width="170" x="400" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-15" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="280" y="340" as="sourcePoint" />
+            <mxPoint x="280" y="380" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&#xa; Behavior Modeling Engine&#xa;&#xa;" vertex="1">
+          <mxGeometry height="30" width="150" x="210" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-17" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="279.5" y="420" as="sourcePoint" />
+            <mxPoint x="279.5" y="460" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-18" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&#xa; Persona Data Model&#xa;&#xa;" vertex="1">
+          <mxGeometry height="30" width="120" x="220" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-19" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="279.5" y="490" />
+              <mxPoint x="279.5" y="490" />
+            </Array>
+            <mxPoint x="279.5" y="520" as="sourcePoint" />
+            <mxPoint x="280" y="520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-20" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="270" y="520" />
+            </Array>
+            <mxPoint x="210" y="520" as="sourcePoint" />
+            <mxPoint x="370" y="520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-21" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="530" />
+              <mxPoint x="210" y="530" />
+            </Array>
+            <mxPoint x="210" y="520" as="sourcePoint" />
+            <mxPoint x="210" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-22" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="370" y="520" as="sourcePoint" />
+            <mxPoint x="370" y="560" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-23" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&#xa;CSV Storage&#xa;&#xa;" vertex="1">
+          <mxGeometry height="40" width="120" x="310" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-24" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Persona Cards" vertex="1">
+          <mxGeometry height="40" width="110" x="150" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-25" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="160" y="630" />
+            </Array>
+            <mxPoint x="100" y="630" as="sourcePoint" />
+            <mxPoint x="480" y="630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZZWjt2aflis_Rd12slLH-26" parent="1" style="text;whiteSpace=wrap;html=1;" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;Future Modules&lt;br&gt;&lt;br&gt;      Memory Store&lt;br&gt;&lt;br&gt;      Survey Agent&lt;br&gt;&lt;br&gt;      Consistency Checker&lt;br&gt;&lt;br&gt;      Interview Mode&lt;br&gt;&lt;br&gt;      Analytics Dashboard&lt;/font&gt;" vertex="1">
+          <mxGeometry height="220" width="200" x="150" y="650" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

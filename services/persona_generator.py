@@ -1,11 +1,29 @@
 import json
-from google import genai
-from pydantic import BaseModel, Field
+import os
 from typing import List
 
-# Import your API key configuration safely
-from config.settings import GEMINI_API_KEY
+os.environ.pop("GOOGLE_API_KEY", None)
 
+from google import genai
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+from services.faker_service import generate_fake_details
+
+
+# Load environment variables
+load_dotenv()
+
+# Use available API key without changing .env
+GEMINI_API_KEY = (
+    os.getenv("GEMINI_API_KEY")
+    or os.getenv("GOOGLE_API_KEY")
+)
+
+
+# ----------------------------
+# Pydantic Models
+# ----------------------------
 
 class PsychologicalProfile(BaseModel):
     motivation: str
@@ -39,10 +57,13 @@ class PersonaSchema(BaseModel):
     education: str
     income: str
     bio: str
+
     goals: List[str] = Field(description="List of core goals")
-    pain_points: List[str] = Field(description="List of main pain points")
+    pain_points: List[str] = Field(description="List of pain points")
+
     technology_usage: str
     buying_behavior: str
+
     psychological_profile: PsychologicalProfile
     behavior_pattern: BehaviorPattern
     big_five_personality: BigFivePersonality
@@ -52,9 +73,21 @@ class PersonaListContainer(BaseModel):
     personas: List[PersonaSchema]
 
 
+# ----------------------------
+# Persona Generator
+# ----------------------------
+
 class PersonaGenerator:
+
     def __init__(self):
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
+
+        if not GEMINI_API_KEY:
+            raise ValueError("Gemini API key not found")
+
+        self.client = genai.Client(
+            api_key=GEMINI_API_KEY
+        )
+
 
     def generate_personas(
         self,
@@ -63,37 +96,102 @@ class PersonaGenerator:
         profession: str,
         location: str,
         interests: str,
-        persona_count: int = 1
+        persona_count: int = 1,
     ):
+
         prompt = f"""
 You are an expert UX researcher and behavioral psychologist.
 
-Generate {persona_count} highly realistic, diverse, and distinct synthetic personas.
-Each persona must be completely unique with distinct motivations, routines, and traits.
+Generate {persona_count} highly realistic, diverse and unique synthetic personas.
 
-Target Criteria to base the generation on:
-- Age bracket/Context: {age}
-- Gender: {gender}
-- Profession context: {profession}
-- Location context: {location}
-- Core Interests: {interests}
+Each persona should contain:
+
+- Name
+- Age
+- Gender
+- Occupation
+- Education
+- Income
+- Bio
+- Goals
+- Pain Points
+- Technology Usage
+- Buying Behavior
+- Psychological Profile
+- Behavior Pattern
+- Big Five Personality
+
+
+Target Criteria:
+
+Age: {age}
+Gender: {gender}
+Profession: {profession}
+Location: {location}
+Interests: {interests}
 """
 
+
         try:
+
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",
                     "response_schema": PersonaListContainer,
-                    "temperature": 0.7
-                }
+                },
             )
+
 
             raw_data = json.loads(response.text)
 
-            return raw_data.get("personas", [])
+            personas = raw_data.get("personas", [])
+
+
+            if not personas:
+                return []
+
+
+            enriched_personas = []
+
+
+            for persona in personas:
+
+                fake_details = generate_fake_details()
+
+                enriched_persona = {
+                    **persona,
+                    **fake_details,
+                }
+
+                enriched_personas.append(
+                    enriched_persona
+                )
+
+
+            return enriched_personas
+
 
         except Exception as e:
-            print(f"Error generating personas inside service: {e}")
-            return None
+
+            print(
+                f"Error generating personas: {e}"
+            )
+
+            return []
+        
+if __name__ == "__main__":
+
+    generator = PersonaGenerator()
+
+    personas = generator.generate_personas(
+        age="25",
+        gender="Female",
+        profession="Software Engineer",
+        location="India",
+        interests="Technology, AI, Shopping",
+        persona_count=1
+    )
+
+    print(json.dumps(personas, indent=4))

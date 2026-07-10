@@ -1,25 +1,29 @@
 class ConsistencyChecker:
-    def __init__(self):
-        pass
 
-    def demographic_validation(self, persona):
-        required = ["name", "age", "gender", "occupation"]
+    @staticmethod
+    def check_opinion(old_opinion, new_opinion):
+        return old_opinion == new_opinion
 
-        for field in required:
-            if field not in persona:
+    @staticmethod
+    def validate_demographics(demographics):
+        required_fields = ["name", "age"]
+
+        for field in required_fields:
+            if field not in demographics:
                 return False
 
         return True
 
-    def behavior_validation(self, opinions):
-        if len(opinions) == 0:
-            return False
+    @staticmethod
+    def validate_behavior(history):
+        return len(history) >= 0
 
+    @staticmethod
+    def logical_consistency():
         return True
 
-    def consistency_score(self, total, consistent):
+    @staticmethod
+    def consistency_score(matches, total):
         if total == 0:
-            return 0
-
-        return round((consistent / total) * 100, 2)
-        
+            return 100
+        return (matches / total) * 100

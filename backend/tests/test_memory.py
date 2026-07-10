@@ -1,22 +1,24 @@
-from backend.app.memory.memory_store import MemoryStore
-from backend.app.memory.consistency_checker import ConsistencyChecker
+from app.memory.memory_store import MemoryStore
+from app.memory.consistency_checker import ConsistencyChecker
 
-memory = MemoryStore()
 
-memory.save_memory("user1", "I like coffee")
-memory.save_memory("user1", "I use Android")
+def test_memory_creation():
+    memory = MemoryStore()
 
-print(memory.get_memory("user1"))
+    memory.add_message("user", "Hello")
+    assert len(memory.get_history()) == 1
 
-checker = ConsistencyChecker()
 
-persona = {
-    "name": "John",
-    "age": 25,
-    "gender": "Male",
-    "occupation": "Engineer"
-}
+def test_opinion_tracking():
+    memory = MemoryStore()
 
-print(checker.demographic_validation(persona))
-print(checker.behavior_validation(memory.get_memory("user1")))
-print(checker.consistency_score(10, 9))
+    memory.add_opinion("food", "Pizza")
+
+    assert memory.get_opinion("food") == "Pizza"
+
+
+def test_consistency():
+    assert ConsistencyChecker.check_opinion(
+        "Python",
+        "Python"
+    )

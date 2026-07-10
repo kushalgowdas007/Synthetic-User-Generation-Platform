@@ -60,6 +60,17 @@ def _coerce_score(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _coerce_timestamp(value: Any, default: str = "") -> str:
+    """Normalize created/updated timestamps into a string."""
+    if value is None:
+        return default
+
+    if isinstance(value, (int, float)):
+        return str(value)
+
+    return str(value).strip() or default
+
+
 @dataclass
 class BigFivePersonality:
     """Structured Big Five personality profile with safe defaults."""
@@ -118,6 +129,8 @@ class Persona:
     email: str = "Not provided"
     phone: str = "Not provided"
     address: str = "Not provided"
+    id: str = ""
+    avatar_url: str = ""
     company: str = "Not provided"
     goals: List[str] = field(default_factory=list)
     pain_points: List[str] = field(default_factory=list)
@@ -127,6 +140,8 @@ class Persona:
     buying_behaviour: str = "Not provided"
     psychological_profile: Any = "Not provided"
     behavior_pattern: Any = "Not provided"
+    created_at: str = ""
+    updated_at: str = ""
     big_five: BigFivePersonality = field(default_factory=BigFivePersonality)
 
     @classmethod
@@ -153,6 +168,20 @@ class Persona:
             }
 
         return cls(
+            id=_coerce_text(
+                payload.get("id")
+                or payload.get("persona_id")
+                or payload.get("uuid")
+                or payload.get("uid"),
+                "",
+            ),
+            avatar_url=_coerce_text(
+                payload.get("avatar_url")
+                or payload.get("avatar")
+                or payload.get("image_url")
+                or payload.get("photo_url"),
+                "",
+            ),
             name=_coerce_text(payload.get("name"), "Unknown"),
             age=_coerce_text(payload.get("age"), "N/A"),
             gender=_coerce_text(payload.get("gender"), "Not provided"),
@@ -177,11 +206,21 @@ class Persona:
             ),
             psychological_profile=payload.get("psychological_profile") or payload.get("psychology") or payload.get("psychological"),
             behavior_pattern=payload.get("behavior_pattern") or payload.get("behaviour_pattern") or payload.get("behavior"),
+            created_at=_coerce_timestamp(
+                payload.get("created_at") or payload.get("createdAt") or payload.get("created"),
+                "",
+            ),
+            updated_at=_coerce_timestamp(
+                payload.get("updated_at") or payload.get("updatedAt") or payload.get("updated"),
+                "",
+            ),
             big_five=BigFivePersonality.from_value(big_five_payload),
         )
 
     def to_dict(self) -> Mapping[str, Any]:
         return {
+            "id": self.id,
+            "avatar_url": self.avatar_url,
             "name": self.name,
             "age": self.age,
             "gender": self.gender,
@@ -200,5 +239,7 @@ class Persona:
             "buying_behaviour": self.buying_behaviour,
             "psychological_profile": self.psychological_profile,
             "behavior_pattern": self.behavior_pattern,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
             "big_five": self.big_five.to_dict(),
         }

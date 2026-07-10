@@ -13,6 +13,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data"
 CSV_PATH = DATA_DIR / "personas.csv"
 EXPECTED_COLUMNS = [
+    "id",
+    "avatar_url",
     "name",
     "age",
     "gender",
@@ -31,6 +33,8 @@ EXPECTED_COLUMNS = [
     "buying_behaviour",
     "psychological_profile",
     "behavior_pattern",
+    "created_at",
+    "updated_at",
     "big_five_openness",
     "big_five_conscientiousness",
     "big_five_extraversion",
@@ -135,7 +139,10 @@ def _format_badges(values: Sequence[str], accent: str = "#eff6ff") -> str:
 
 
 def _build_avatar_url(persona: Persona) -> str:
-    """Generate a placeholder avatar that never fails when no image exists."""
+    """Return an explicit avatar URL if provided, otherwise generate a fallback."""
+    if persona.avatar_url and isinstance(persona.avatar_url, str) and persona.avatar_url.strip():
+        return persona.avatar_url.strip()
+
     name = persona.name or "Unknown"
     return f"https://api.dicebear.com/9.x/initials/svg?seed={quote(name)}"
 
@@ -339,6 +346,8 @@ def display_personas(personas: Optional[Any]) -> None:
 def _flatten_persona(persona: Persona) -> Dict[str, Any]:
     """Convert a persona into a flat CSV-friendly record."""
     return {
+        "id": persona.id,
+        "avatar_url": persona.avatar_url,
         "name": persona.name,
         "age": persona.age,
         "gender": persona.gender,
@@ -357,6 +366,8 @@ def _flatten_persona(persona: Persona) -> Dict[str, Any]:
         "buying_behaviour": persona.buying_behaviour,
         "psychological_profile": _format_text(persona.psychological_profile),
         "behavior_pattern": _format_text(persona.behavior_pattern),
+        "created_at": persona.created_at,
+        "updated_at": persona.updated_at,
         "big_five_openness": persona.big_five.openness,
         "big_five_conscientiousness": persona.big_five.conscientiousness,
         "big_five_extraversion": persona.big_five.extraversion,

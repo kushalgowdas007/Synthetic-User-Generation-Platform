@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 
 # --------------------------------------------------
 # Page Configuration
@@ -22,12 +23,13 @@ with st.sidebar:
     st.write("""
 Complete the experiment configuration before generating synthetic user personas.
 
-**Steps**
-1. Enter experiment details.
-2. Select the industry.
-3. Choose simulation type.
-4. Set persona count.
-5. Click **Generate Personas**.
+### Steps
+1. Enter experiment details
+2. Select the industry
+3. Choose simulation type
+4. Set persona count
+5. Generate personas
+6. Continue to Survey Module
 """)
 
 # --------------------------------------------------
@@ -38,10 +40,6 @@ st.title("🧪 Experiment Workspace")
 st.write(
     "Configure your experiment before generating synthetic user personas."
 )
-
-st.progress(25)
-
-st.divider()
 
 # --------------------------------------------------
 # Experiment Form
@@ -101,8 +99,7 @@ with st.form("experiment_form"):
             "👥 Persona Count",
             min_value=1,
             max_value=50,
-            value=5,
-            step=1
+            value=5
         )
 
     simulation_type = st.selectbox(
@@ -125,8 +122,41 @@ with st.form("experiment_form"):
     )
 
 # --------------------------------------------------
+# Progress Bar
+# --------------------------------------------------
+
+progress = 0
+
+if experiment_name:
+    progress += 15
+
+if product_name:
+    progress += 15
+
+if description:
+    progress += 15
+
+if target_audience:
+    progress += 15
+
+if research_objective:
+    progress += 15
+
+if industry:
+    progress += 10
+
+if simulation_type:
+    progress += 10
+
+if persona_count:
+    progress += 5
+
+st.progress(progress)
+
+# --------------------------------------------------
 # Validation
 # --------------------------------------------------
+
 if generate_button:
 
     if not experiment_name.strip():
@@ -157,48 +187,118 @@ if generate_button:
             "simulation_type": simulation_type
         }
 
+        # Store experiment for future pages
+        st.session_state["experiment"] = experiment_data
+
+        # Loading Animation
+        with st.spinner("Generating experiment configuration..."):
+            time.sleep(2)
+
         st.success("✅ Experiment configured successfully!")
 
         st.write(
-            "Your experiment has been created successfully and is ready for persona generation."
+            "Your experiment is ready for persona generation."
         )
 
         st.divider()
 
+        # --------------------------------------------------
+        # Metrics
+        # --------------------------------------------------
+
         st.subheader("📊 Experiment Overview")
 
-        metric1, metric2, metric3 = st.columns(3)
+        m1, m2, m3 = st.columns(3)
 
-        metric1.metric("Industry", industry)
-        metric2.metric("Personas", persona_count)
-        metric3.metric("Simulation", simulation_type)
-
-        st.divider()
-
-        st.subheader("📋 Experiment Summary")
-
-        left, right = st.columns(2)
-
-        with left:
-            st.info(f"**Experiment Name:** {experiment_name}")
-            st.info(f"**Product Name:** {product_name}")
-
-        with right:
-            st.info(f"**Target Audience:** {target_audience}")
-            st.info(f"**Research Objective:** {research_objective}")
-
-        with st.expander("📝 Experiment Description"):
-            st.write(description)
+        m1.metric("Industry", industry)
+        m2.metric("Personas", persona_count)
+        m3.metric("Simulation", simulation_type)
 
         st.divider()
 
-        st.subheader("📦 Generated Experiment Configuration")
+        # --------------------------------------------------
+        # Experiment Details
+        # --------------------------------------------------
+
+        st.subheader("📋 Experiment Details")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.write("### General Information")
+
+            st.write(f"**Experiment Name:** {experiment_name}")
+            st.write(f"**Product Name:** {product_name}")
+            st.write(f"**Industry:** {industry}")
+
+        with col2:
+
+            st.write("### Research Information")
+
+            st.write(f"**Target Audience:** {target_audience}")
+            st.write(f"**Research Objective:** {research_objective}")
+            st.write(f"**Simulation Type:** {simulation_type}")
+
+        st.divider()
+
+        st.subheader("📝 Description")
+
+        st.info(description)
+
+        st.divider()
+
+        # --------------------------------------------------
+        # JSON Configuration
+        # --------------------------------------------------
+
+        st.subheader("📦 Experiment Configuration")
 
         st.json(experiment_data)
+
+        st.divider()
+
+        # --------------------------------------------------
+        # Persona Generation Placeholder
+        # --------------------------------------------------
+
+        st.subheader("🤖 Persona Generation")
+
+        st.info(
+            "This section will connect with the Persona Generator backend."
+        )
+
+        if st.button("Start Persona Generation"):
+
+            with st.spinner("Generating personas..."):
+                time.sleep(2)
+
+            st.success(
+                "Persona generation completed successfully! (Backend integration pending)"
+            )
+
+        st.divider()
+
+        # --------------------------------------------------
+        # Survey Module Placeholder
+        # --------------------------------------------------
+
+        st.subheader("📋 Survey Module")
+
+        st.info(
+            "Survey Module will be integrated after personas are generated."
+        )
+
+        if st.button("Open Survey Module"):
+
+            st.success(
+                "Survey page will be connected here."
+            )
 
 # --------------------------------------------------
 # Footer
 # --------------------------------------------------
+
 st.divider()
 
 st.caption("© 2026 Synthetic User Generation Platform")

@@ -319,3 +319,124 @@ The proposed architecture provides the following benefits:
 # 7. Conclusion
 
 The Synthetic User Generation Platform adopts a modular Agent-Based Architecture to ensure flexibility, scalability, and maintainability. The current implementation supports persona generation, while the planned architecture seamlessly accommodates advanced features such as Persona Memory, Survey Mode, Consistency Validation, Insight Extraction, and Analytics without requiring major architectural changes.
+
+
+---
+
+# 2.5 Memory Agent
+
+## Purpose
+
+Maintains long-term persona memory across multi-turn conversations.
+
+### Responsibilities
+
+- Store conversation history
+- Track persona opinions
+- Provide previous context
+- Maintain consistency
+
+### Input
+
+Persona Responses
+
+### Output
+
+Conversation Context
+
+---
+
+# 2.6 Consistency Checker Agent
+
+## Purpose
+
+Ensures every response remains consistent with the persona profile.
+
+### Responsibilities
+
+- Validate demographic information
+- Detect contradictory opinions
+- Check behavioural consistency
+- Generate consistency score
+
+### Output
+
+Consistency Score (0.0–1.0)
+
+---
+
+# 2.7 Survey Agent
+
+## Purpose
+
+Executes surveys using generated personas.
+
+### Responsibilities
+
+- Generate survey responses
+- Maintain persona memory
+- Support multi-turn conversations
+- Batch response generation
+
+### Input
+
+Survey Questions
+
+### Output
+
+Persona Responses
+
+---
+
+# 2.8 Analytics Agent (Future)
+
+## Purpose
+
+Analyzes generated survey responses to produce business insights.
+
+### Responsibilities
+
+- Product Fit Analysis
+- Insight Extraction
+- Behaviour Trends
+- Dashboard Generation
+
+### Output
+
+Analytics Reports
+
+---
+
+# Agent Communication Flow
+
+```
+Workspace Agent
+
+↓
+
+Persona Generation Agent
+
+↓
+
+Behavior Simulation Agent
+
+↓
+
+Persona Presentation Agent
+
+↓
+
+Memory Agent
+
+↓
+
+Consistency Checker
+
+↓
+
+Survey Agent
+
+↓
+
+Analytics Agent
+```

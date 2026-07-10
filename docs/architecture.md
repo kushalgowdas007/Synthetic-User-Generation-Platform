@@ -1,259 +1,170 @@
-# Synthetic User Generation Platform - System Architecture
+# Synthetic User Generation Platform
+
+# System Architecture
+
+---
 
 ## Version
-1.0
 
-## Milestone
-Post Milestone 1 – Architecture Design
-
-## Author
-Member 5 – Technical Lead / System Architect
+2.0
 
 ---
 
-# 1. Project Overview
+## Overview
 
-The Synthetic User Generation Platform is an AI-powered research platform designed to generate realistic synthetic user personas using Large Language Models (LLMs). The platform enables researchers, product teams, and designers to conduct user research without requiring real participants.
+The Synthetic User Generation Platform follows a modular Agent-Based Architecture designed to support scalable AI-driven synthetic persona generation.
 
-The system generates diverse personas based on product descriptions, target audiences, and research objectives. These personas simulate realistic user behavior, enabling experiments, surveys, interviews, and analytics in future milestones.
+Each module performs a specific responsibility and communicates through well-defined interfaces.
 
----
-
-# 2. Objectives
-
-The platform aims to:
-
-- Generate realistic synthetic personas.
-- Simulate user behavior using AI.
-- Create reusable personas for product research.
-- Support multi-turn conversations.
-- Maintain long-term persona memory.
-- Validate behavioral consistency.
-- Provide analytics and insights.
+The architecture has been designed so that future milestones can be integrated without modifying existing components.
 
 ---
 
-# 3. Technology Stack
-
-| Layer | Technology |
-|--------|------------|
-| Frontend | Streamlit |
-| Backend | Python |
-| AI Model | Google Gemini |
-| Synthetic Data | Faker |
-| Data Processing | Pandas |
-| Future Database | Supabase |
-| Future Agent Framework | LangGraph |
-| Visualization | Plotly |
-
----
-
-# 4. High-Level System Architecture
+# High Level Architecture
 
 ```
-                User
-
-                  │
-
-                  ▼
-
-      Streamlit Experiment Workspace
-
-                  │
-
-                  ▼
-
-        Experiment Controller
-
-                  │
-
-        ┌─────────┴─────────┐
-
-        ▼                   ▼
-
-Persona Generation     Experiment Manager
-
-        │
-
-        ▼
-
-Behavior Modeling Engine
-
-        │
-
-        ▼
-
-Persona Data Model
-
-        │
-
- ┌──────┴────────┐
-
- ▼               ▼
-
-Persona Cards   CSV Storage
-
-────────────────────────────────────────
-
-Future Modules
-
-Memory Store
-
-Survey Agent
-
-Consistency Checker
-
-Interview Mode
-
-Analytics Dashboard
+                    User
+                     │
+                     ▼
+        Streamlit Experiment Workspace
+                     │
+                     ▼
+         Experiment Controller
+                     │
+                     ▼
+      Persona Generation Agent
+                     │
+                     ▼
+     Behavior Simulation Agent
+                     │
+                     ▼
+          Persona Data Model
+                     │
+                     ▼
+          Persona Presentation
+                     │
+                     ▼
+         Persona Memory Store
+                     │
+                     ▼
+      Consistency Checker
+                     │
+                     ▼
+          Survey Agent
+                     │
+                     ▼
+         Survey Service
+                     │
+                     ▼
+        Repository Layer
+                     │
+                     ▼
+              Database
+                     │
+                     ▼
+       Analytics Dashboard (Future)
 ```
 
 ---
 
-# 5. Major Components
+# Component Description
 
-## 5.1 Experiment Workspace
+## Streamlit Workspace
 
-Responsibilities:
+Collects experiment information from the user.
 
-- Accept product details.
-- Accept target audience.
-- Accept research objective.
-- Configure experiment settings.
-- Trigger persona generation.
+Responsibilities
 
----
-
-## 5.2 Persona Generation Agent
-
-Responsibilities:
-
-- Receive experiment information.
-- Generate diverse personas using Gemini.
-- Produce structured persona data.
-- Ensure diversity among generated users.
+- Product Information
+- Target Audience
+- Research Goal
+- Persona Count
 
 ---
 
-## 5.3 Behavioral Modeling Engine
+## Persona Generation Agent
 
-Responsibilities:
+Uses Google Gemini AI to generate realistic synthetic personas.
 
-- Generate personality traits.
-- Generate goals.
-- Generate pain points.
-- Generate buying behavior.
-- Generate technology usage.
-- Generate psychological profile.
+Responsibilities
 
----
-
-## 5.4 Persona Data Model
-
-Stores all generated persona information.
-
-The data model is designed to support:
-
-- Memory
-- Surveys
-- Interviews
-- Analytics
-
-without future redesign.
+- Prompt Engineering
+- Persona Generation
+- Diversity
+- JSON Formatting
 
 ---
 
-## 5.5 Persona Presentation Layer
+## Behavior Simulation Agent
 
-Displays generated personas as interactive cards.
+Adds realistic behaviour.
 
-Each card contains:
+Responsibilities
 
-- Name
-- Age
-- Occupation
 - Goals
 - Pain Points
-- Personality
-- Behavioral Traits
+- Buying Behaviour
 - Technology Usage
+- Personality
 
 ---
 
-# 6. Future Components
+## Persona Memory Store
 
-The following components are planned for upcoming milestones.
+Stores conversation history.
 
-## Persona Memory Module
+Responsibilities
 
-Maintains conversation history.
-
-Stores previous opinions.
-
-Supports multi-turn interactions.
-
----
-
-## Survey Module
-
-Creates surveys.
-
-Executes surveys.
-
-Collects persona responses.
+- Previous Responses
+- User Opinions
+- Context Management
 
 ---
 
 ## Consistency Checker
 
-Validates responses.
+Validates generated responses.
 
-Detects contradictions.
+Checks
 
-Calculates consistency score.
-
----
-
-## Insight Engine
-
-Extracts patterns.
-
-Finds trends.
-
-Generates recommendations.
+- Demographic Consistency
+- Behaviour Consistency
+- Opinion Consistency
+- Logical Consistency
 
 ---
 
-## Analytics Dashboard
+## Survey Agent
 
-Displays:
+Executes surveys.
 
-- Persona statistics
-- Product fit
-- Survey summaries
-- Behavioral analytics
+Responsibilities
 
----
-
-# 7. Scalability
-
-The modular architecture allows independent development of each component.
-
-Each module communicates through well-defined interfaces, making it easy to extend the platform with additional AI agents in future milestones.
+- Survey Questions
+- Response Generation
+- Multi-turn Conversation
 
 ---
 
-# 8. Architecture Benefits
+## Repository Layer
 
-- Modular Design
+Stores experiments and survey responses.
+
+---
+
+## Future Components
+
+- Interview Mode
+- Product Fit Analysis
+- Insight Extraction
+- Analytics Dashboard
+
+---
+
+# Benefits
+
+- Modular
+- Scalable
 - Easy Maintenance
-- Scalable Architecture
-- Reusable Components
-- Supports Multi-Agent Systems
 - Future Ready
-
----
-
-# 9. Conclusion
-
-The proposed architecture establishes a scalable foundation for the Synthetic User Generation Platform. The modular design supports current persona generation capabilities while preparing the system for Persona Memory, Survey Mode, Interview Mode, Consistency Validation, and Analytics in future milestones.
+- Independent Components

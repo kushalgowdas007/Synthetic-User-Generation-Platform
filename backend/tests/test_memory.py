@@ -1,5 +1,5 @@
-from app.memory.memory_store import MemoryStore
-from app.memory.consistency_checker import ConsistencyChecker
+from backend.app.memory.memory_store import MemoryStore
+from backend.app.memory.consistency_checker import ConsistencyChecker
 
 
 def test_memory_creation():

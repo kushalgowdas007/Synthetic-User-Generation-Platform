@@ -114,7 +114,7 @@ def _build_weighted_product_fit(persona: Mapping[str, Any], product_name: str, r
     buying_behaviour = _coerce_text(persona.get("buying_behaviour") or persona.get("buying_behavior"), "Not provided")
     occupation = _coerce_text(persona.get("occupation"), "Not provided")
 
-    big_five = persona.get("big_five") or {}
+    big_five = persona.get("big_five") or persona.get("big_five_personality") or {}
     if isinstance(big_five, Mapping):
         openness = _coerce_score(big_five.get("openness"), 0.0)
         conscientiousness = _coerce_score(big_five.get("conscientiousness"), 0.0)
@@ -387,7 +387,9 @@ def build_research_report(
 
     for persona in persona_items:
         age_value = persona.get("age")
-        if isinstance(age_value, str):
+        if isinstance(age_value, (int, float)):
+            age_values.append(int(age_value))
+        elif isinstance(age_value, str):
             digits = re.findall(r"(\d+)", age_value)
             if digits:
                 age_values.append(int(digits[0]))
@@ -401,7 +403,7 @@ def build_research_report(
         for tech in _coerce_list(persona.get("technology_usage")):
             tech_counter[tech] += 1
 
-        big_five = persona.get("big_five") or {}
+        big_five = persona.get("big_five") or persona.get("big_five_personality") or {}
         if isinstance(big_five, Mapping):
             psych_counter["Openness"] += _coerce_score(big_five.get("openness"), 0.0)
             psych_counter["Conscientiousness"] += _coerce_score(big_five.get("conscientiousness"), 0.0)

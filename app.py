@@ -22,17 +22,57 @@ st.set_page_config(
 # -------------------------------
 # Sidebar
 # -------------------------------
-st.sidebar.title("📌 Navigation")
-
-st.sidebar.info(
-    "Fill in the details below and click **Generate Synthetic User**."
+st.sidebar.markdown(
+    """
+    <style>
+    .nav-shell {
+        border: 1px solid #dbeafe;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #ffffff, #f8fafc);
+        padding: 0.95rem;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+    }
+    .nav-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.7rem 0.75rem;
+        border-radius: 12px;
+        margin-bottom: 0.35rem;
+        color: #0f172a;
+        font-weight: 700;
+    }
+    .nav-row.active {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+    .nav-divider {
+        border: none;
+        border-top: 1px solid #e2e8f0;
+        margin: 0.75rem 0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
-st.sidebar.markdown("---")
-
-st.sidebar.header("About")
-
-st.sidebar.write("""
+with st.sidebar:
+    st.markdown(
+        """
+        <div class="nav-shell">
+            <div class="nav-row active">🏠 Home</div>
+            <div class="nav-row">🔍 Research</div>
+            <div class="nav-row">📊 Analytics</div>
+            <div class="nav-row">⚙️ Settings</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("<hr class='nav-divider' />", unsafe_allow_html=True)
+    st.info("Fill in the details below and click **Generate Synthetic User**.")
+    st.markdown("---")
+    st.header("About")
+    st.write("""
 This platform generates realistic synthetic users using **Google Gemini AI**.
 
 ### Use Cases

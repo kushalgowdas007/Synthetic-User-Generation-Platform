@@ -184,6 +184,23 @@ def _filter_personas(personas: Sequence[Persona], search: str, gender: str, occu
     return filtered
 
 
+def _sort_personas(personas: Sequence[Persona], sort_by: str) -> List[Persona]:
+    """Sort filtered personas using the selected frontend control."""
+    if sort_by == "Age":
+        return sorted(
+            personas,
+            key=lambda persona: (_get_age_value(persona) is None, _get_age_value(persona) or 0, persona.name.lower()),
+        )
+
+    if sort_by == "Occupation":
+        return sorted(personas, key=lambda persona: (persona.occupation.lower(), persona.name.lower()))
+
+    if sort_by == "Income":
+        return sorted(personas, key=lambda persona: (str(persona.income).lower(), persona.name.lower()))
+
+    return sorted(personas, key=lambda persona: persona.name.lower())
+
+
 def _render_big_five(persona: Persona) -> str:
     """Render Big Five scores as a clean HTML-based progress visualization."""
     big_five = persona.big_five if isinstance(persona.big_five, BigFivePersonality) else BigFivePersonality.from_value(persona.big_five)
@@ -228,68 +245,68 @@ def display_persona_card(persona: Optional[Any]) -> None:
     with st.container():
         st.markdown(
             f"""
-            <div style="border:1px solid #e2e8f0; border-radius:24px; padding:20px; background:linear-gradient(135deg,#ffffff,#f8fafc); box-shadow:0 14px 32px rgba(15,23,42,0.08); margin-bottom:18px;">
-                <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
-                    <div style="width:92px; height:92px; border-radius:50%; overflow:hidden; background:#eef2ff; display:flex; align-items:center; justify-content:center; box-shadow:inset 0 0 0 1px #dbeafe;">
+            <div style="border:1px solid #e2e8f0; border-radius:24px; padding:22px; background:linear-gradient(135deg,#ffffff,#f8fafc); box-shadow:0 18px 42px rgba(15,23,42,0.08); margin-bottom:18px;">
+                <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+                    <div style="width:102px; height:102px; border-radius:50%; overflow:hidden; background:#eef2ff; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 20px rgba(37,99,235,0.16); border:3px solid #dbeafe;">
                         <img src="{avatar_url}" alt="Avatar" style="width:100%; height:100%; object-fit:cover;" />
                     </div>
-                    <div style="flex:1; min-width:240px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                    <div style="flex:1; min-width:260px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
                             <div>
-                                <h3 style="margin:0; color:#0f172a;">{html.escape(persona_obj.name)}</h3>
-                                <p style="margin:2px 0 0; color:#64748b;">{html.escape(persona_obj.occupation)} • {html.escape(persona_obj.gender)} • {html.escape(persona_obj.age)}</p>
+                                <h3 style="margin:0; color:#0f172a; font-size:1.45rem; font-weight:800;">{html.escape(persona_obj.name)}</h3>
+                                <p style="margin:4px 0 0; color:#64748b; font-size:0.92rem; font-weight:600;">{html.escape(persona_obj.occupation)} • {html.escape(persona_obj.gender)} • {html.escape(persona_obj.age)}</p>
                             </div>
                             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:#eff6ff;color:#2563eb;font-size:0.8rem;font-weight:700;">Age {html.escape(str(persona_obj.age))}</span>
-                                <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:0.8rem;font-weight:700;">{html.escape(persona_obj.income)}</span>
+                                <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:0.78rem;font-weight:800;">Age {html.escape(str(persona_obj.age))}</span>
+                                <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:0.78rem;font-weight:800;">{html.escape(persona_obj.income)}</span>
+                                <span style="display:inline-block;padding:7px 11px;border-radius:999px;background:#fef3c7;color:#b45309;font-size:0.78rem;font-weight:800;">{html.escape(persona_obj.company)}</span>
                             </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; margin-bottom:12px;">
-                            <div style="padding:8px 10px; border-radius:12px; background:#f8fafc; color:#334155;"><strong style="color:#0f172a;">Education:</strong> {html.escape(persona_obj.education)}</div>
-                            <div style="padding:8px 10px; border-radius:12px; background:#f8fafc; color:#334155;"><strong style="color:#0f172a;">Email:</strong> {html.escape(persona_obj.email)}</div>
-                            <div style="padding:8px 10px; border-radius:12px; background:#f8fafc; color:#334155;"><strong style="color:#0f172a;">Phone:</strong> {html.escape(persona_obj.phone)}</div>
-                            <div style="padding:8px 10px; border-radius:12px; background:#f8fafc; color:#334155;"><strong style="color:#0f172a;">Company:</strong> {html.escape(persona_obj.company)}</div>
-                            <div style="padding:8px 10px; border-radius:12px; background:#f8fafc; color:#334155;"><strong style="color:#0f172a;">Address:</strong> {html.escape(persona_obj.address)}</div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; margin-bottom:14px;">
+                            <div style="padding:10px 12px; border-radius:12px; background:#f8fafc; color:#334155; border:1px solid #e2e8f0;"><strong style="color:#0f172a;">Education:</strong> {html.escape(persona_obj.education)}</div>
+                            <div style="padding:10px 12px; border-radius:12px; background:#f8fafc; color:#334155; border:1px solid #e2e8f0;"><strong style="color:#0f172a;">Email:</strong> {html.escape(persona_obj.email)}</div>
+                            <div style="padding:10px 12px; border-radius:12px; background:#f8fafc; color:#334155; border:1px solid #e2e8f0;"><strong style="color:#0f172a;">Phone:</strong> {html.escape(persona_obj.phone)}</div>
+                            <div style="padding:10px 12px; border-radius:12px; background:#f8fafc; color:#334155; border:1px solid #e2e8f0;"><strong style="color:#0f172a;">Address:</strong> {html.escape(persona_obj.address)}</div>
                         </div>
 
-                        <div style="margin-bottom:12px;">
-                            <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:6px;">Core Traits</div>
+                        <div style="margin-bottom:14px;">
+                            <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:6px;">Core Traits</div>
                             {_format_badges(persona_obj.traits, "#fef3c7")}
                         </div>
 
-                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin-bottom:12px;">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin-bottom:14px;">
                             <div style="padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#2563eb; margin-bottom:6px;">Goals</div>
+                                <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2563eb; margin-bottom:6px;">Goals</div>
                                 {_format_badges(persona_obj.goals, "#dcfce7")}
                             </div>
                             <div style="padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#dc2626; margin-bottom:6px;">Pain Points</div>
+                                <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#dc2626; margin-bottom:6px;">Pain Points</div>
                                 {_format_badges(persona_obj.pain_points, "#fee2e2")}
                             </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-bottom:14px;">
                             <div style="padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#7c3aed; margin-bottom:6px;">Technology Usage</div>
+                                <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#7c3aed; margin-bottom:6px;">Technology Usage</div>
                                 <div style="color:#334155;">{html.escape(_format_text(persona_obj.technology_usage))}</div>
                             </div>
                             <div style="padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#0f766e; margin-bottom:6px;">Buying Behaviour</div>
+                                <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#0f766e; margin-bottom:6px;">Buying Behaviour</div>
                                 <div style="color:#334155;">{html.escape(_format_text(persona_obj.buying_behaviour))}</div>
                             </div>
                             <div style="padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#b45309; margin-bottom:6px;">Psychological Profile</div>
+                                <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#b45309; margin-bottom:6px;">Psychological Profile</div>
                                 <div style="color:#334155;">{html.escape(_format_text(persona_obj.psychological_profile))}</div>
                             </div>
                             <div style="padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#be185d; margin-bottom:6px;">Behavior Pattern</div>
+                                <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#be185d; margin-bottom:6px;">Behavior Pattern</div>
                                 <div style="color:#334155;">{html.escape(_format_text(persona_obj.behavior_pattern))}</div>
                             </div>
                         </div>
 
-                        <div style="margin-top:14px; padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
-                            <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#334155; margin-bottom:8px;">Big Five Personality</div>
+                        <div style="padding:12px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0;">
+                            <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#334155; margin-bottom:8px;">Big Five Personality</div>
                             {_render_big_five(persona_obj)}
                         </div>
                     </div>
@@ -316,30 +333,36 @@ def display_personas(personas: Optional[Any]) -> None:
         )
         return
 
-    search_query = st.text_input("Search by name", placeholder="Type a name to filter", key="persona_search")
-    filter_col1, filter_col2, filter_col3 = st.columns(3)
-    with filter_col1:
+    search_col, gender_col, occupation_col, age_col = st.columns([1.8, 1, 1, 1.4])
+    with search_col:
+        search_query = st.text_input("Search by name", placeholder="Type a name to filter", key="persona_search")
+    with gender_col:
         gender_options = ["All"] + sorted({persona.gender for persona in normalized_personas if persona.gender})
         selected_gender = st.selectbox("Gender", gender_options, key="persona_gender_filter")
-    with filter_col2:
+    with occupation_col:
         occupation_options = ["All"] + sorted({persona.occupation for persona in normalized_personas if persona.occupation})
         selected_occupation = st.selectbox("Occupation", occupation_options, key="persona_occupation_filter")
-    with filter_col3:
+    with age_col:
         available_ages = [age for age in (_get_age_value(persona) for persona in normalized_personas) if age is not None]
         if available_ages:
             age_range = st.slider("Age filter", min_value=min(available_ages), max_value=max(available_ages), value=(min(available_ages), max(available_ages)), key="persona_age_filter")
         else:
             age_range = st.slider("Age filter", min_value=0, max_value=100, value=(0, 100), key="persona_age_filter")
 
+    sort_col, _ = st.columns([1, 3])
+    with sort_col:
+        sort_by = st.selectbox("Sort by", ["Name", "Age", "Occupation", "Income"], key="persona_sort_filter")
+
     filtered_personas = _filter_personas(normalized_personas, search_query, selected_gender, selected_occupation, age_range)
+    sorted_personas = _sort_personas(filtered_personas, sort_by)
 
-    st.caption(f"Showing {len(filtered_personas)} of {len(normalized_personas)} personas")
+    st.caption(f"Showing {len(sorted_personas)} of {len(normalized_personas)} personas")
 
-    if not filtered_personas:
+    if not sorted_personas:
         st.info("No personas match the current filters. Try broadening the search or changing the age range.")
         return
 
-    for persona in filtered_personas:
+    for persona in sorted_personas:
         display_persona_card(persona)
 
 
@@ -422,6 +445,20 @@ def build_csv_bytes(personas: Optional[Any]) -> bytes:
 
 def main() -> None:
     """Render the persona cards page and export actions."""
+    st.markdown(
+        """
+        <style>
+        .block-container { padding-top: 1.2rem; }
+        .stButton > button {
+            border-radius: 14px;
+            height: 2.9rem;
+            font-weight: 700;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.16);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.title("🧾 Persona Cards")
     st.caption("Review personas in a polished dashboard, filter them instantly, and export the full dataset for downstream use.")
 

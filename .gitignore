@@ -96,3 +96,13 @@ htmlcov/
 # ==========================================
 # data/personas.csv
 # data/*.csv
+
+# Test files
+backend/tests/
+test_consistency.py
+test_conversation.py
+test_gemini.py
+test_interview.py
+test_memory.py
+test_models.py
+test_opinion.py

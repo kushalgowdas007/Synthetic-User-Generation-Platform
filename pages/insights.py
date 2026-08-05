@@ -54,23 +54,71 @@ def main() -> None:
 
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     metric_col1.metric("Sentiment", str(insights.get("sentiment", "N/A")).title())
-    metric_col2.metric("Would Use Score", f"{float(insights.get('would_use_product_score', 0) or 0):.1f}")
+    metric_col2.metric("Product Fit", f"{float(insights.get('product_fit_score', 0) or 0):.1f}")
     metric_col3.metric("Survey Responses", insights.get("response_count", 0))
     metric_col4.metric("Interview Messages", insights.get("interview_message_count", 0))
+    score_col1, score_col2 = st.columns(2)
+    score_col1.metric(
+        "Recommendation Score",
+        f"{float(insights.get('recommendation_score', insights.get('would_use_product_score', 0)) or 0):.1f}",
+        help=f"Confidence {insights.get('recommendation_confidence_score', 0)}",
+    )
+    score_col2.metric(
+        "Product Fit Confidence",
+        f"{float(insights.get('product_fit_confidence_score', 0) or 0):.0f}",
+    )
 
     theme_df = pd.DataFrame(insights.get("themes", []))
     if not theme_df.empty:
         st.plotly_chart(px.bar(theme_df, x="theme", y="count", title="Theme Frequency"), use_container_width=True)
+        st.dataframe(theme_df, use_container_width=True, hide_index=True)
+
+    sentiment_distribution = insights.get("sentiment_distribution", {})
+    if sentiment_distribution:
+        sentiment_df = pd.DataFrame(
+            [
+                {"Sentiment": key.title(), "Count": value.get("count", 0), "Confidence": value.get("confidence_score", 0)}
+                for key, value in sentiment_distribution.items()
+                if isinstance(value, dict)
+            ]
+        )
+        if not sentiment_df.empty:
+            st.plotly_chart(px.pie(sentiment_df, names="Sentiment", values="Count", title="Sentiment Distribution"), use_container_width=True)
+            st.dataframe(sentiment_df, use_container_width=True, hide_index=True)
 
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Recommendations")
-        for recommendation in insights.get("recommendations", []):
-            st.write(f"- {recommendation}")
+        st.subheader("Final AI Recommendations")
+        for item in insights.get("final_ai_recommendations", []):
+            if isinstance(item, dict):
+                st.write(f"- {item.get('recommendation', '')} _(confidence {item.get('confidence_score', 0)})_")
+            else:
+                st.write(f"- {item}")
     with col2:
         st.subheader("Top Quotes")
         for quote in insights.get("top_quotes", []):
-            st.write(f"> {quote}")
+            if isinstance(quote, dict):
+                st.write(f"> {quote.get('quote', '')}")
+                st.caption(f"{quote.get('persona_name', 'Persona')} | {quote.get('source', 'research')} | Confidence {quote.get('confidence_score', 0)}")
+            else:
+                st.write(f"> {quote}")
+
+    detail_tabs = st.tabs(["Keywords", "Pain Points", "Feature Requests", "Behavior", "Barriers", "Early Adopters"])
+    tab_payloads = [
+        insights.get("keywords", []),
+        insights.get("pain_points", []),
+        insights.get("feature_requests", []),
+        insights.get("behavior_patterns", []),
+        insights.get("product_adoption_barriers", []),
+        insights.get("early_adopter_detection", []),
+    ]
+    for tab, payload in zip(detail_tabs, tab_payloads):
+        with tab:
+            frame = pd.DataFrame(payload)
+            if frame.empty:
+                st.info("No records available for this insight category.")
+            else:
+                st.dataframe(frame, use_container_width=True, hide_index=True)
 
     with st.expander("Persona Segmentation", expanded=False):
         st.json(insights.get("persona_segmentation", {}))

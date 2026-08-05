@@ -1,5 +1,7 @@
 from backend.services.survey_service import (
     DEFAULT_SURVEY_QUESTIONS,
+    SURVEY_TEMPLATES,
+    analyze_survey_responses,
     create_survey,
     execute_survey,
 )
@@ -33,3 +35,26 @@ def test_execute_survey_returns_response_rows():
     assert "responses" in result
     assert len(result["responses"]) == 3
     assert all("question_id" in response for response in result["responses"])
+
+
+def test_survey_templates_and_analytics_are_available():
+    assert "Pricing Sensitivity" in SURVEY_TEMPLATES
+    survey = create_survey(
+        product_name="FitPulse AI",
+        research_goal="Retention",
+        template_name="Pricing Sensitivity",
+        include_dynamic_questions=True,
+    )
+    assert len(survey) > len(DEFAULT_SURVEY_QUESTIONS)
+    assert all("category" in question for question in survey)
+
+    result = execute_survey(
+        personas=[{"name": "Meera", "technology_usage": "High", "goals": ["Save time"], "pain_points": ["High cost"]}],
+        product_name="FitPulse AI",
+        research_goal="Retention",
+        template_name="Pricing Sensitivity",
+        include_dynamic_questions=True,
+    )
+    analytics = analyze_survey_responses(result["responses"])
+    assert analytics["response_count"] == len(result["responses"])
+    assert analytics["average_by_category"]

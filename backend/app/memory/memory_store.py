@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Dict, List
 
 class MemoryStore:
@@ -6,10 +7,12 @@ class MemoryStore:
         self.opinions: Dict[str, str] = {}
         self.demographics: Dict[str, str] = {}
 
-    def add_message(self, role: str, message: str):
+    def add_message(self, role: str, message: str, topic: str = ""):
         self.conversation_history.append({
             "role": role,
-            "message": message
+            "message": message,
+            "topic": topic,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
     def get_history(self):

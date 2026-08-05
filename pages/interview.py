@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pandas as pd
 import streamlit as st
 
@@ -45,18 +47,34 @@ def main() -> None:
         st.write(f"**Buying Behavior:** {persona.get('buying_behavior', 'Not provided')}")
     with col2:
         st.subheader("Memory")
-        st.json(memories[persona_id].get("opinions", {}))
+        memory_payload = memories[persona_id]
+        metric_col1, metric_col2 = st.columns(2)
+        metric_col1.metric("Emotion", str(memory_payload.get("emotional_state", "neutral")).title())
+        metric_col2.metric("Consistency", f"{float(memory_payload.get('consistency_score', 100) or 100):.0f}")
+        st.write("**Conversation Summary**")
+        st.write(memory_payload.get("conversation_summary", "No interview responses have been captured yet."))
+        with st.expander("Tracked Opinions", expanded=False):
+            st.json(memory_payload.get("opinions", {}))
 
     for item in memories[persona_id].get("history", []):
         with st.chat_message("user" if item.get("role") == "user" else "assistant"):
             st.write(item.get("message", ""))
 
+    st.subheader("Suggested Follow-up Questions")
+    follow_up_question = None
+    follow_up_columns = st.columns(3)
+    for index, follow_up in enumerate(memories[persona_id].get("follow_up_questions", [])[:3]):
+        with follow_up_columns[index % 3]:
+            if st.button(follow_up, key=f"followup_{persona_id}_{index}", use_container_width=True):
+                follow_up_question = str(follow_up)
+
     question = st.chat_input("Ask this persona about needs, pricing, adoption, frustrations, or product fit")
-    if question:
+    active_question = question or follow_up_question
+    if active_question:
         with st.spinner("Interviewing persona..."):
             result = generate_interview_reply(
                 persona=persona,
-                user_message=question,
+                user_message=active_question,
                 memory_payload=memories[persona_id],
                 experiment=get_experiment(),
             )
@@ -76,6 +94,13 @@ def main() -> None:
             data=frame.to_csv(index=False).encode("utf-8"),
             file_name="interview_transcript.csv",
             mime="text/csv",
+            use_container_width=True,
+        )
+        st.download_button(
+            "Download interview memory JSON",
+            data=json.dumps(memories, indent=2).encode("utf-8"),
+            file_name="interview_memory.json",
+            mime="application/json",
             use_container_width=True,
         )
     else:

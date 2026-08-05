@@ -11,6 +11,7 @@ DEFAULT_SURVEY_QUESTIONS = [
     {
         "id": "q1",
         "question": "How important is a smooth onboarding experience for the product?",
+        "category": "Onboarding",
         "type": "single_choice",
         "options": ["Not important", "Somewhat important", "Important", "Very important"],
         "weight": 1,
@@ -18,6 +19,7 @@ DEFAULT_SURVEY_QUESTIONS = [
     {
         "id": "q2",
         "question": "How likely are you to adopt a solution that reduces your current pain points?",
+        "category": "Adoption",
         "type": "single_choice",
         "options": ["Very unlikely", "Unlikely", "Possible", "Very likely"],
         "weight": 1,
@@ -25,11 +27,152 @@ DEFAULT_SURVEY_QUESTIONS = [
     {
         "id": "q3",
         "question": "How likely are you to recommend this product to peers after trying it?",
+        "category": "Recommendation",
         "type": "single_choice",
         "options": ["No", "Maybe", "Likely", "Highly likely"],
         "weight": 1,
     },
 ]
+
+SURVEY_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
+    "Product Adoption": DEFAULT_SURVEY_QUESTIONS,
+    "Usability and Onboarding": [
+        {
+            "id": "u1",
+            "question": "How easy would it be for you to understand the first step in this product?",
+            "category": "Usability",
+            "type": "single_choice",
+            "options": ["Very hard", "Somewhat hard", "Easy", "Very easy"],
+            "weight": 1,
+        },
+        {
+            "id": "u2",
+            "question": "How much guidance would you expect during setup?",
+            "category": "Onboarding",
+            "type": "single_choice",
+            "options": ["None", "A little", "Guided setup", "Hands-on support"],
+            "weight": 1,
+        },
+        {
+            "id": "u3",
+            "question": "Would unclear navigation stop you from using this product regularly?",
+            "category": "Barriers",
+            "type": "single_choice",
+            "options": ["Definitely", "Probably", "Not much", "Not at all"],
+            "weight": 1,
+        },
+        {
+            "id": "u4",
+            "question": "How confident would you feel completing your main task without support?",
+            "category": "Confidence",
+            "type": "single_choice",
+            "options": ["Not confident", "Somewhat confident", "Confident", "Very confident"],
+            "weight": 1,
+        },
+    ],
+    "Pricing Sensitivity": [
+        {
+            "id": "p1",
+            "question": "How important is transparent pricing before you try this product?",
+            "category": "Pricing",
+            "type": "single_choice",
+            "options": ["Not important", "Somewhat important", "Important", "Critical"],
+            "weight": 1,
+        },
+        {
+            "id": "p2",
+            "question": "Would a free trial increase your willingness to adopt this product?",
+            "category": "Trial",
+            "type": "single_choice",
+            "options": ["No", "Maybe", "Likely", "Definitely"],
+            "weight": 1,
+        },
+        {
+            "id": "p3",
+            "question": "How much proof of ROI would you need before paying?",
+            "category": "Trust",
+            "type": "single_choice",
+            "options": ["Very little", "Some proof", "Strong proof", "Detailed proof"],
+            "weight": 1,
+        },
+        {
+            "id": "p4",
+            "question": "Would bundled features make the price feel more acceptable?",
+            "category": "Value",
+            "type": "single_choice",
+            "options": ["No", "Maybe", "Likely", "Definitely"],
+            "weight": 1,
+        },
+    ],
+    "Retention and Loyalty": [
+        {
+            "id": "r1",
+            "question": "How likely are you to keep using this product after the first month?",
+            "category": "Retention",
+            "type": "single_choice",
+            "options": ["Unlikely", "Maybe", "Likely", "Very likely"],
+            "weight": 1,
+        },
+        {
+            "id": "r2",
+            "question": "Which factor would most influence repeat usage?",
+            "category": "Behavior",
+            "type": "single_choice",
+            "options": ["Price", "Ease of use", "Outcome quality", "Habit formation"],
+            "weight": 1,
+        },
+        {
+            "id": "r3",
+            "question": "Would reminders or progress tracking help you stay engaged?",
+            "category": "Engagement",
+            "type": "single_choice",
+            "options": ["No", "Maybe", "Likely", "Definitely"],
+            "weight": 1,
+        },
+        {
+            "id": "r4",
+            "question": "How likely are you to switch away if setup takes too long?",
+            "category": "Barriers",
+            "type": "single_choice",
+            "options": ["Very likely", "Likely", "Maybe", "Unlikely"],
+            "weight": 1,
+        },
+    ],
+    "Feature Discovery": [
+        {
+            "id": "f1",
+            "question": "Which feature type would create the strongest first impression?",
+            "category": "Feature Request",
+            "type": "single_choice",
+            "options": ["Automation", "Analytics", "Personalization", "Collaboration"],
+            "weight": 1,
+        },
+        {
+            "id": "f2",
+            "question": "How important is personalization to your adoption decision?",
+            "category": "Personalization",
+            "type": "single_choice",
+            "options": ["Not important", "Somewhat important", "Important", "Very important"],
+            "weight": 1,
+        },
+        {
+            "id": "f3",
+            "question": "Would integrations with current tools increase fit?",
+            "category": "Integration",
+            "type": "single_choice",
+            "options": ["No", "Maybe", "Likely", "Definitely"],
+            "weight": 1,
+        },
+        {
+            "id": "f4",
+            "question": "What level of automation would feel trustworthy?",
+            "category": "Trust",
+            "type": "single_choice",
+            "options": ["Manual only", "Suggestions", "Assisted automation", "Full automation"],
+            "weight": 1,
+        },
+    ],
+}
 
 
 def _normalize_persona(persona: Any) -> Dict[str, Any]:
@@ -104,6 +247,58 @@ def _strongest_summary(summary_map: Mapping[str, float]) -> str:
         return "No dominant pattern yet"
     strongest = max(summary_map.items(), key=lambda item: item[1])
     return f"{strongest[0]} is the strongest observed signal"
+
+
+def _normalize_question(question: Any, index: int, product_name: str, research_goal: str) -> Dict[str, Any]:
+    if isinstance(question, Mapping):
+        source = dict(question)
+        text = _coerce_text(source.get("question") or source.get("text"), "How helpful is this product?")
+        options = source.get("options") or ["Very unlikely", "Unlikely", "Likely", "Very likely"]
+        question_type = _coerce_text(source.get("type"), "single_choice")
+        category = _coerce_text(source.get("category"), "General")
+        weight = int(_coerce_score(source.get("weight"), 1) or 1)
+        question_id = _coerce_text(source.get("id"), f"q{index + 1}")
+    else:
+        text = _coerce_text(question, "How helpful is this product?")
+        options = ["Very unlikely", "Unlikely", "Likely", "Very likely"]
+        question_type = "single_choice"
+        category = "Custom"
+        weight = 1
+        question_id = f"custom_{index + 1}"
+
+    return {
+        "id": question_id,
+        "question": text,
+        "category": category,
+        "type": question_type,
+        "options": list(options) if isinstance(options, (list, tuple)) else _coerce_list(options),
+        "weight": max(1, weight),
+        "product_name": str(product_name or ""),
+        "research_goal": str(research_goal or ""),
+    }
+
+
+def _dynamic_questions(product_name: str, research_goal: str) -> List[Dict[str, Any]]:
+    product_label = product_name.strip() or "this product"
+    goal_label = research_goal.strip() or "your main goal"
+    return [
+        {
+            "id": "dyn_goal_fit",
+            "question": f"How well does {product_label} support {goal_label}?",
+            "category": "Product Fit",
+            "type": "single_choice",
+            "options": ["Poorly", "Somewhat", "Well", "Very well"],
+            "weight": 2,
+        },
+        {
+            "id": "dyn_barrier",
+            "question": f"What would most prevent you from adopting {product_label}?",
+            "category": "Barriers",
+            "type": "single_choice",
+            "options": ["Price", "Trust", "Learning curve", "Low need"],
+            "weight": 2,
+        },
+    ]
 
 
 def _build_weighted_product_fit(persona: Mapping[str, Any], product_name: str, research_goal: str) -> Dict[str, Any]:
@@ -228,20 +423,17 @@ def _emotion_for_score(score: int) -> str:
 def create_survey(
     product_name: str = "",
     research_goal: str = "",
-    survey_questions: Optional[Sequence[Mapping[str, Any]]] = None,
+    survey_questions: Optional[Sequence[Any]] = None,
+    template_name: str = "Product Adoption",
+    include_dynamic_questions: bool = False,
 ) -> List[Dict[str, Any]]:
     """Create a survey payload for the current product and research objective."""
-    questions = list(survey_questions or DEFAULT_SURVEY_QUESTIONS)
+    template_questions = SURVEY_TEMPLATES.get(template_name, DEFAULT_SURVEY_QUESTIONS)
+    questions = list(survey_questions) if survey_questions is not None else list(template_questions)
+    if include_dynamic_questions:
+        questions.extend(_dynamic_questions(product_name, research_goal))
     return [
-        {
-            "id": str(question.get("id", f"q{index + 1}")),
-            "question": str(question.get("question", "How helpful is this product?")),
-            "type": str(question.get("type", "single_choice")),
-            "options": list(question.get("options", [])),
-            "weight": int(question.get("weight", 1)),
-            "product_name": str(product_name or ""),
-            "research_goal": str(research_goal or ""),
-        }
+        _normalize_question(question, index, product_name, research_goal)
         for index, question in enumerate(questions)
     ]
 
@@ -250,7 +442,9 @@ def execute_survey(
     personas: Any,
     product_name: str = "",
     research_goal: str = "",
-    survey_questions: Optional[Sequence[Mapping[str, Any]]] = None,
+    survey_questions: Optional[Sequence[Any]] = None,
+    template_name: str = "Product Adoption",
+    include_dynamic_questions: bool = False,
 ) -> Dict[str, Any]:
     """Execute the survey and enrich each response with realistic reasoning metadata."""
     if personas is None:
@@ -262,7 +456,13 @@ def execute_survey(
     else:
         normalized_personas = [_normalize_persona(personas)]
 
-    questions = create_survey(product_name=product_name, research_goal=research_goal, survey_questions=survey_questions)
+    questions = create_survey(
+        product_name=product_name,
+        research_goal=research_goal,
+        survey_questions=survey_questions,
+        template_name=template_name,
+        include_dynamic_questions=include_dynamic_questions,
+    )
     responses: List[Dict[str, Any]] = []
 
     for index, persona in enumerate(normalized_personas):
@@ -281,7 +481,15 @@ def execute_survey(
         base_score = int(fit_profile["overall_score"])
 
         for question_index, question in enumerate(questions):
-            question_score = max(0, min(100, base_score + (question_index * 4)))
+            category_modifier = {
+                "Pricing": -4,
+                "Barriers": -8,
+                "Trust": -2,
+                "Product Fit": 6,
+                "Recommendation": 4,
+                "Retention": 2,
+            }.get(question.get("category", ""), 0)
+            question_score = max(0, min(100, base_score + (question_index * 4) + category_modifier))
             response_value = _answer_for_score(question_score, question.get("options", []))
             confidence_score = _confidence_for_score(question_score)
             emotion = _emotion_for_score(question_score)
@@ -302,6 +510,9 @@ def execute_survey(
                     "persona_buying_behaviour": persona_buying_behaviour,
                     "question_id": question["id"],
                     "question": question["question"],
+                    "question_category": question["category"],
+                    "question_type": question["type"],
+                    "template_name": template_name,
                     "answer": response_value,
                     "confidence_score": confidence_score,
                     "emotion": emotion,
@@ -315,12 +526,55 @@ def execute_survey(
             )
 
     average_fit = _safe_mean([float(response.get("score", 0) or 0) for response in responses]) if responses else 0.0
+    analytics = analyze_survey_responses(responses)
     return {
         "product_name": product_name,
         "research_goal": research_goal,
+        "template_name": template_name,
         "survey": questions,
         "responses": responses,
+        "analytics": analytics,
+        "question_categories": sorted({question["category"] for question in questions}),
         "product_fit_score": average_fit,
+    }
+
+
+def analyze_survey_responses(responses: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Aggregate survey rows for dashboard cards, charts, and exports."""
+    category_scores: MutableMapping[str, List[float]] = defaultdict(list)
+    persona_scores: MutableMapping[str, List[float]] = defaultdict(list)
+    question_scores: MutableMapping[str, List[float]] = defaultdict(list)
+    answer_counter: Counter[str] = Counter()
+    sentiment_counter: Counter[str] = Counter()
+    confidence_scores: List[float] = []
+    adoption_barriers: Counter[str] = Counter()
+
+    for response in responses:
+        score = float(response.get("score", 0) or 0)
+        category = _coerce_text(response.get("question_category"), "General")
+        persona_name = _coerce_text(response.get("persona_name"), "Persona")
+        question = _coerce_text(response.get("question_id"), "Question")
+        category_scores[category].append(score)
+        persona_scores[persona_name].append(score)
+        question_scores[question].append(score)
+        answer_counter[_coerce_text(response.get("answer"), "N/A")] += 1
+        sentiment_counter[_emotion_for_score(int(score))] += 1
+        confidence_scores.append(float(response.get("confidence_score", 0) or 0))
+
+        fit_details = response.get("product_fit_details", {})
+        if isinstance(fit_details, Mapping):
+            for weakness in fit_details.get("weaknesses", []):
+                adoption_barriers[_coerce_text(weakness)] += 1
+
+    return {
+        "average_by_category": {key: _safe_mean(values) for key, values in category_scores.items()},
+        "average_by_persona": {key: _safe_mean(values) for key, values in persona_scores.items()},
+        "average_by_question": {key: _safe_mean(values) for key, values in question_scores.items()},
+        "answer_distribution": dict(answer_counter),
+        "sentiment_distribution": dict(sentiment_counter),
+        "average_confidence": _safe_mean(confidence_scores),
+        "adoption_barriers": dict(adoption_barriers.most_common(8)),
+        "response_count": len(responses),
     }
 
 

@@ -6,7 +6,7 @@ import os
 import random
 import re
 import time
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -412,7 +412,7 @@ Persona seed:
             "state": self._coerce_text(persona.get("state"), fake_details["state"]),
             "pincode": self._coerce_text(persona.get("pincode") or persona.get("postcode"), fake_details["pincode"]),
         }
-        normalized["quality_score"] = self._quality_score(normalized)
+        normalized.update(self._quality_scores(normalized))
         return normalized
 
     def _deduplicate_and_score(self, personas: List[Dict[str, Any]], context: Mapping[str, Any]) -> List[Dict[str, Any]]:
@@ -429,23 +429,125 @@ Persona seed:
                 bio_key = str(persona["bio"]).lower()
             seen_names.add(name_key)
             seen_bios.add(bio_key)
-            persona["quality_score"] = self._quality_score(persona)
             unique.append(persona)
+
+        for persona in unique:
+            persona.update(self._quality_scores(persona, unique))
 
         return unique
 
     def _quality_score(self, persona: Mapping[str, Any]) -> int:
+        return int(self._quality_scores(persona).get("quality_score", 0))
+
+    def _quality_scores(self, persona: Mapping[str, Any], peers: Optional[Sequence[Mapping[str, Any]]] = None) -> Dict[str, int]:
+        completeness = self._completeness_score(persona)
+        validation = self._validation_score(persona)
+        consistency = self._consistency_score(persona)
+        diversity = self._diversity_score(persona, peers or [])
+        quality = round((completeness * 0.30) + (validation * 0.20) + (consistency * 0.30) + (diversity * 0.20))
+        return {
+            "quality_score": max(0, min(100, quality)),
+            "diversity_score": diversity,
+            "validation_score": validation,
+            "completeness_score": completeness,
+            "consistency_score": consistency,
+        }
+
+    def _completeness_score(self, persona: Mapping[str, Any]) -> int:
         completeness = sum(1 for field in REQUIRED_FIELDS if persona.get(field) not in (None, "", [], {})) / len(REQUIRED_FIELDS)
-        consistency = 1.0
+        optional_fields = ["lifestyle", "motivation", "frustrations", "daily_routine", "decision_making"]
+        optional_completeness = sum(1 for field in optional_fields if persona.get(field) not in (None, "", [], {})) / len(optional_fields)
+        return max(0, min(100, round((completeness * 80) + (optional_completeness * 20))))
+
+    def _validation_score(self, persona: Mapping[str, Any]) -> int:
+        score = 100
+        age = self._coerce_age(persona.get("age"))
+        if not 18 <= age <= 80:
+            score -= 25
+        if "@" not in str(persona.get("email", "")):
+            score -= 10
+        if len(self._coerce_list(persona.get("goals"))) < 2:
+            score -= 12
+        if len(self._coerce_list(persona.get("pain_points"))) < 2:
+            score -= 12
+        big_five = persona.get("big_five_personality", {})
+        if not isinstance(big_five, Mapping):
+            score -= 18
+        else:
+            for value in big_five.values():
+                try:
+                    numeric = float(str(value).replace("%", ""))
+                except ValueError:
+                    score -= 6
+                    continue
+                if numeric < 0 or numeric > 100:
+                    score -= 6
+        return max(0, min(100, round(score)))
+
+    def _consistency_score(self, persona: Mapping[str, Any]) -> int:
+        score = 100
         age = self._coerce_age(persona.get("age"))
         occupation = str(persona.get("occupation", "")).lower()
         if age < 22 and any(role in occupation for role in ("senior", "director", "manager")):
-            consistency -= 0.2
+            score -= 22
         if not self._coerce_list(persona.get("goals")) or not self._coerce_list(persona.get("pain_points")):
-            consistency -= 0.2
-        realism = 0.85 if len(str(persona.get("bio", ""))) > 80 else 0.65
-        score = (completeness * 40) + (max(consistency, 0.0) * 35) + (realism * 25)
+            score -= 18
+        bio = str(persona.get("bio", ""))
+        if len(bio) < 80:
+            score -= 14
+        tech = str(persona.get("technology_usage", "")).lower()
+        buying = str(persona.get("buying_behavior") or persona.get("buying_behaviour") or "").lower()
+        if "low" in tech and any(term in buying for term in ("advanced", "automation-first", "early adopter")):
+            score -= 14
+        income = str(persona.get("income", "")).lower()
+        if "student" in occupation and any(term in income for term in ("25 lpa", "110", "high income")):
+            score -= 12
         return max(0, min(100, round(score)))
+
+    def _diversity_score(self, persona: Mapping[str, Any], peers: Sequence[Mapping[str, Any]]) -> int:
+        if not peers:
+            return 82
+
+        comparisons = [peer for peer in peers if peer is not persona]
+        if not comparisons:
+            return 82
+
+        attributes = {
+            "gender": str(persona.get("gender", "")).strip().lower(),
+            "occupation": str(persona.get("occupation", "")).strip().lower(),
+            "education": str(persona.get("education", "")).strip().lower(),
+            "technology_usage": str(persona.get("technology_usage", "")).strip().lower(),
+            "age_band": self._age_band(persona.get("age")),
+            "income": str(persona.get("income", "")).strip().lower(),
+        }
+        distinct = 0
+        available = 0
+        for key, value in attributes.items():
+            if not value:
+                continue
+            available += 1
+            peer_values = {
+                self._age_band(peer.get("age")) if key == "age_band" else str(peer.get(key, "")).strip().lower()
+                for peer in comparisons
+            }
+            if value not in peer_values:
+                distinct += 1
+        if available == 0:
+            return 60
+        return max(45, min(100, round(55 + (distinct / available) * 45)))
+
+    @classmethod
+    def _age_band(cls, value: Any) -> str:
+        age = cls._coerce_age(value)
+        if age < 25:
+            return "18-24"
+        if age < 35:
+            return "25-34"
+        if age < 45:
+            return "35-44"
+        if age < 55:
+            return "45-54"
+        return "55+"
 
     def _model_candidates(self) -> List[str]:
         candidates = [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]

@@ -112,6 +112,11 @@ def render_persona_card(persona: dict) -> None:
             metric_col1.metric("Income", as_text(persona.get("income")))
             metric_col2.metric("Education", as_text(persona.get("education")))
             metric_col3.metric("Quality", as_text(persona.get("quality_score"), "N/A"))
+            score_col1, score_col2, score_col3, score_col4 = st.columns(4)
+            score_col1.metric("Diversity", as_text(persona.get("diversity_score"), "N/A"))
+            score_col2.metric("Validation", as_text(persona.get("validation_score"), "N/A"))
+            score_col3.metric("Completeness", as_text(persona.get("completeness_score"), "N/A"))
+            score_col4.metric("Consistency", as_text(persona.get("consistency_score"), "N/A"))
 
         st.write(as_text(persona.get("bio"), "No biography provided."))
         st.caption(f"Location: {as_text(persona.get('city') or persona.get('location'))} | Lifestyle: {as_text(persona.get('lifestyle'))}")

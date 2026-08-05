@@ -7,11 +7,13 @@ import streamlit as st
 
 from frontend.shared import (
     get_experiment,
+    get_experiment_history,
     get_personas,
     get_survey_results,
     init_session_state,
     render_page_header,
     render_sidebar,
+    save_experiment_snapshot,
     save_personas,
 )
 from services.persona_generator import PersonaGenerator
@@ -49,6 +51,47 @@ def build_experiment_payload(
         "location": location.strip(),
         "interests": interests.strip(),
     }
+
+
+def render_experiment_history() -> None:
+    history = get_experiment_history()
+    if not history:
+        return
+
+    st.subheader("Recent Experiments")
+    recent_rows = [
+        {
+            "Experiment": item.get("experiment_name", "Untitled"),
+            "Product": item.get("product_name", "N/A"),
+            "Industry": item.get("industry", "N/A"),
+            "Personas": item.get("persona_count_generated", 0),
+            "Updated": item.get("updated_at", ""),
+        }
+        for item in history[:6]
+    ]
+    st.dataframe(recent_rows, use_container_width=True, hide_index=True)
+
+    with st.expander("Experiment history actions", expanded=False):
+        for item in history[:6]:
+            experiment_id = str(item.get("experiment_id", item.get("experiment_name", "")))
+            label = f"{item.get('experiment_name', 'Untitled')} - {item.get('product_name', 'N/A')}"
+            row_col1, row_col2, row_col3 = st.columns([3, 1, 1])
+            row_col1.write(label)
+            if row_col2.button("Duplicate", key=f"duplicate_{experiment_id}", use_container_width=True):
+                duplicated = dict(item)
+                duplicated.pop("experiment_id", None)
+                duplicated.pop("created_at", None)
+                duplicated["experiment_name"] = f"{duplicated.get('experiment_name', 'Experiment')} Copy"
+                save_experiment_snapshot(duplicated, get_personas())
+                st.success("Experiment duplicated and loaded into the workspace form.")
+                st.rerun()
+            if row_col3.button("Delete", key=f"delete_{experiment_id}", use_container_width=True):
+                remaining = [entry for entry in get_experiment_history() if str(entry.get("experiment_id")) != experiment_id]
+                st.session_state["experiment_history"] = remaining
+                if str(get_experiment().get("experiment_id")) == experiment_id:
+                    st.session_state["experiment"] = {}
+                st.success("Experiment removed from recent history.")
+                st.rerun()
 
 
 def render_workspace() -> None:
@@ -169,11 +212,14 @@ def render_workspace() -> None:
             location=location,
             interests=interests,
         )
-        st.session_state["experiment"] = experiment_payload
+        experiment_payload = save_experiment_snapshot(experiment_payload, [])
 
         try:
+            progress = st.progress(0, text="Preparing persona generation request")
             with st.spinner("Generating personas with Gemini and Faker enrichment..."):
+                progress.progress(20, text="Validating experiment context")
                 generator = PersonaGenerator()
+                progress.progress(45, text="Generating persona profiles")
                 generated_personas = generator.generate_personas(
                     age=experiment_payload["age"],
                     gender=experiment_payload["gender"],
@@ -188,6 +234,7 @@ def render_workspace() -> None:
                     industry=experiment_payload["industry"],
                     simulation_type=experiment_payload["simulation_type"],
                 )
+                progress.progress(90, text="Scoring and saving personas")
         except Exception as exc:
             st.error(f"Persona generation failed. Detail: {exc}")
             return
@@ -197,6 +244,8 @@ def render_workspace() -> None:
             return
 
         save_personas(generated_personas)
+        save_experiment_snapshot(experiment_payload, generated_personas)
+        progress.progress(100, text="Personas ready")
         st.success(f"Successfully generated {len(generated_personas)} personas.")
         if generator.last_error:
             st.warning(generator.last_error)
@@ -214,6 +263,15 @@ def render_workspace() -> None:
     if get_experiment():
         with st.expander("Experiment configuration", expanded=False):
             st.json(get_experiment())
+        with st.expander("Experiment metadata", expanded=False):
+            metadata = {
+                "experiment_id": get_experiment().get("experiment_id", "N/A"),
+                "created_at": get_experiment().get("created_at", "N/A"),
+                "updated_at": get_experiment().get("updated_at", "N/A"),
+                "persona_count_requested": get_experiment().get("persona_count", 0),
+                "persona_count_generated": get_experiment().get("persona_count_generated", 0),
+            }
+            st.json(metadata)
 
     current_personas = get_personas()
     if current_personas:
@@ -225,6 +283,9 @@ def render_workspace() -> None:
             file_name="personas.json",
             mime="application/json",
         )
+
+    st.divider()
+    render_experiment_history()
 
 
 def main() -> None:

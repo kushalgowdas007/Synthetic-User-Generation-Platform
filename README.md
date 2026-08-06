@@ -1,130 +1,71 @@
-# 🚀 Synthetic User Generation Platform
+# Synthetic User Generation Platform
 
-An AI-powered platform that generates realistic **synthetic user personas** using **Google Gemini AI** and **Faker**. The platform enables researchers, designers, and developers to create diverse virtual users for product research, UX testing, and AI-driven simulations.
+An end-to-end Streamlit application for generating synthetic user personas, running simulated survey responses, and presenting analytics for product research.
 
----
+## Demo Flow
 
-# 📌 Project Overview
+```text
+Workspace
+  -> Generate Personas
+  -> Persona Cards
+  -> Survey
+  -> Interview
+  -> Insights
+  -> Dashboard
+```
 
-The Synthetic User Generation Platform helps organizations simulate realistic user behaviour without using real personal data.
+## Current Features
 
-The system generates synthetic personas containing:
+- Streamlit multipage application with `app.py` as the single entry point.
+- Workspace page for experiment setup and persona generation.
+- One canonical persona generator in `services/persona_generator.py`.
+- Gemini generation through the current `google-genai` SDK with Faker-backed contact enrichment.
+- Local Faker fallback when Gemini credentials or API access are unavailable.
+- Shared `st.session_state["personas"]`, `st.session_state["experiment"]`, and `st.session_state["survey_results"]` across all pages.
+- Explicit local workspace save/load and experiment history in `data/workspace_history.json`; saved workspaces also retain interview memory.
+- Persona Cards page with search, filters, sorting, cards, CSV export, and JSON export.
+- Survey page that consumes generated personas without regenerating them.
+- Survey templates for adoption, pricing/value, and usability/trust, with optional custom questions.
+- Interview mode with persona memory, opinions, and conversation history.
+- Insight extraction for themes, sentiment, behavior patterns, recommendations, top quotes, product feedback, and segmentation.
+- Insight confidence, keyword frequency, topic clusters, risk analysis, and executive summary.
+- Dashboard page that reads experiment, personas, survey results, interview data, and insights for KPIs, charts, product-fit analytics, and report downloads.
 
-- Demographic Information
-- Personality Traits
-- Behaviour Patterns
-- Lifestyle
-- Goals
-- Pain Points
-- Buying Behaviour
-- Technology Usage
-
-Future milestones extend the platform with Persona Memory, Survey Mode, Consistency Validation, and Analytics.
-
----
-
-# ✨ Features
-
-## Milestone 1
-
-- ✅ Synthetic Persona Generation
-- ✅ Google Gemini AI Integration
-- ✅ Streamlit User Interface
-- ✅ Persona Cards
-- ✅ Behaviour Simulation
-- ✅ Project Documentation
-
-## Milestone 2 (Planned)
-
-- Persona Memory
-- Survey Mode
-- Consistency Validation
-- Multi-turn Conversations
-
-## Milestone 3 (Planned)
-
-- Product Fit Score
-- Interview Mode
-- Insight Extraction
-- Analytics Dashboard
-
----
-
-# 🛠 Technology Stack
-
-| Category | Technology |
-|----------|------------|
-| Language | Python |
-| Frontend | Streamlit |
-| AI Model | Google Gemini API |
-| Synthetic Data | Faker |
-| Data Processing | Pandas |
-| Agent Framework | LangChain |
-| Workflow Engine | LangGraph |
-| Database | Supabase |
-| Version Control | Git & GitHub |
-
----
-
-# 📂 Project Structure
+## Project Structure
 
 ```text
 Synthetic-User-Generation-Platform/
-│
-├── backend/
-├── frontend/
-├── config/
-├── data/
-├── database/
-├── docs/
-│   ├── architecture.md
-│   ├── agents.md
-│   ├── persona_model.md
-│   ├── workflow.md
-│   ├── integration_plan.md
-│   ├── integration_checklist.md
-│   └── diagrams/
-│
-├── models/
-├── services/
-├── utils/
-├── requirements.txt
-├── README.md
-└── .gitignore
+|-- app.py
+|-- pages/
+|   |-- persona_cards.py
+|   |-- survey.py
+|   |-- interview.py
+|   |-- insights.py
+|   `-- dashboard.py
+|-- frontend/
+|   |-- shared.py
+|   |-- app.py
+|   `-- pages/
+|-- services/
+|   |-- persona_generator.py
+|   `-- faker_service.py
+|-- backend/
+|   |-- services/
+|   `-- tests/
+|-- models/
+|-- config/
+|-- data/
+|-- docs/
+`-- requirements.txt
 ```
 
----
-
-# 🏗 Documentation
-
-The project includes complete technical documentation.
-
-| Document | Description |
-|----------|-------------|
-| architecture.md | Overall System Architecture |
-| agents.md | Agent Design |
-| workflow.md | Experiment Workflow |
-| persona_model.md | Persona Data Model |
-| integration_plan.md | Integration Strategy |
-| integration_checklist.md | Integration Checklist |
-
----
-
-# ⚙ Installation
-
-Clone the repository
-
-```bash
-git clone <repository-url>
-```
-
-Install dependencies
+## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Create a `.env` file
+Create a `.env` file:
 
 ```env
 GEMINI_API_KEY=YOUR_GEMINI_API_KEY
@@ -132,70 +73,35 @@ SUPABASE_URL=YOUR_SUPABASE_URL
 SUPABASE_KEY=YOUR_SUPABASE_KEY
 ```
 
----
+Only `GEMINI_API_KEY` is required for Gemini persona generation. If it is missing, the app still works with local Faker-backed demo personas.
 
-# ▶ Running the Project
-
-If using the root application:
+## Running
 
 ```bash
 streamlit run app.py
 ```
 
-If using the frontend structure:
+## Testing
 
 ```bash
-streamlit run frontend/app.py
+python -m compileall app.py services pages frontend backend models
+python -m pytest
 ```
 
----
+For an optional live Gemini check, set `RUN_LIVE_GEMINI_TESTS=1` and provide `GEMINI_API_KEY`. Normal tests use local deterministic fallbacks and never require a network call.
 
-# 🧪 Testing
+## Deployment
 
-The application has been tested for:
+Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) in the deployment secret manager, install `requirements.txt`, and run `streamlit run app.py`. Do not commit a populated `.env` file. The application remains fully usable without Gemini through its Faker-backed persona and local interview fallbacks.
 
-- Application Launch
-- Google Gemini Integration
-- Persona Generation
-- Navigation
-- Streamlit UI
-- Initial Integration
+## Presentation Notes
 
----
+The project is demo-ready for the main internship workflow:
 
-# 👥 Team Members
-
-| Member | Responsibility |
-|---------|----------------|
-| Member 1 | Workspace UI |
-| Member 2 | Gemini AI Integration |
-| Member 3 | Persona Generation & Faker |
-| Member 4 | Persona Cards & UI |
-| Member 5 | Technical Lead, Integration, Git Management, Documentation, Testing |
-
----
-
-# 📅 Milestone Progress
-
-| Milestone | Status |
-|-----------|--------|
-| Milestone 1 | ✅ Completed |
-| Milestone 2 | 🔄 In Progress |
-| Milestone 3 | ⏳ Planned |
-
----
-
-# 🔮 Future Scope
-
-- Persona Memory
-- Survey Execution
-- Interview Mode
-- Consistency Validation
-- Product Fit Analysis
-- Analytics Dashboard
-
----
-
-# 📄 License
-
-Academic Project – Developed for learning and research purposes.
+1. Enter experiment details in Workspace.
+2. Generate personas once.
+3. Open Persona Cards and inspect/export personas.
+4. Open Survey and run simulated responses.
+5. Open Interview and ask persona-specific questions.
+6. Open Insights and extract research findings.
+7. Open Dashboard and present analytics/report exports.

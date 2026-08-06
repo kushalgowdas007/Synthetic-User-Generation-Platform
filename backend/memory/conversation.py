@@ -1,5 +1,5 @@
 from typing import Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .models import ConversationMessage
 
@@ -30,7 +30,7 @@ class ConversationHistory:
         conversation = ConversationMessage(
             role=role,
             message=message,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
 
         if persona_id not in self._history:

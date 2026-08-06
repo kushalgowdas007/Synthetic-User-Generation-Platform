@@ -129,6 +129,9 @@ class Persona:
     email: str = "Not provided"
     phone: str = "Not provided"
     address: str = "Not provided"
+    city: str = "Not provided"
+    state: str = "Not provided"
+    pincode: str = "Not provided"
     id: str = ""
     avatar_url: str = ""
     company: str = "Not provided"
@@ -191,6 +194,9 @@ class Persona:
             email=_coerce_text(payload.get("email"), "Not provided"),
             phone=_coerce_text(payload.get("phone"), "Not provided"),
             address=_coerce_text(payload.get("address"), "Not provided"),
+            city=_coerce_text(payload.get("city"), "Not provided"),
+            state=_coerce_text(payload.get("state"), "Not provided"),
+            pincode=_coerce_text(payload.get("pincode") or payload.get("postcode"), "Not provided"),
             company=_coerce_text(payload.get("company"), "Not provided"),
             goals=_coerce_list(payload.get("goals")),
             pain_points=_coerce_list(payload.get("pain_points")),
@@ -230,6 +236,9 @@ class Persona:
             "email": self.email,
             "phone": self.phone,
             "address": self.address,
+            "city": self.city,
+            "state": self.state,
+            "pincode": self.pincode,
             "company": self.company,
             "goals": list(self.goals),
             "pain_points": list(self.pain_points),

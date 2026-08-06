@@ -31,6 +31,18 @@ DEFAULT_SURVEY_QUESTIONS = [
     },
 ]
 
+SURVEY_TEMPLATES = {
+    "Product adoption": DEFAULT_SURVEY_QUESTIONS,
+    "Pricing and value": [
+        {"id": "price_1", "question": "How fair does the expected price feel for the value this product provides?", "type": "single_choice", "options": ["Not fair", "Somewhat fair", "Fair", "Very fair"], "weight": 1},
+        {"id": "price_2", "question": "Would a free trial reduce your hesitation to try this product?", "type": "single_choice", "options": ["Not at all", "A little", "Mostly", "Definitely"], "weight": 1},
+    ],
+    "Usability and trust": [
+        {"id": "trust_1", "question": "How important are trust signals and transparent information before you adopt this product?", "type": "single_choice", "options": ["Not important", "Somewhat important", "Important", "Very important"], "weight": 1},
+        {"id": "trust_2", "question": "How confident would you feel completing the first task without help?", "type": "single_choice", "options": ["Not confident", "Somewhat confident", "Confident", "Very confident"], "weight": 1},
+    ],
+}
+
 
 def _normalize_persona(persona: Any) -> Dict[str, Any]:
     """Normalize a Persona-like object into a dictionary for survey analysis."""
@@ -114,7 +126,7 @@ def _build_weighted_product_fit(persona: Mapping[str, Any], product_name: str, r
     buying_behaviour = _coerce_text(persona.get("buying_behaviour") or persona.get("buying_behavior"), "Not provided")
     occupation = _coerce_text(persona.get("occupation"), "Not provided")
 
-    big_five = persona.get("big_five") or {}
+    big_five = persona.get("big_five") or persona.get("big_five_personality") or {}
     if isinstance(big_five, Mapping):
         openness = _coerce_score(big_five.get("openness"), 0.0)
         conscientiousness = _coerce_score(big_five.get("conscientiousness"), 0.0)
@@ -231,7 +243,7 @@ def create_survey(
     survey_questions: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """Create a survey payload for the current product and research objective."""
-    questions = list(survey_questions or DEFAULT_SURVEY_QUESTIONS)
+    questions = [question for question in (survey_questions or DEFAULT_SURVEY_QUESTIONS) if str(question.get("question", "")).strip()]
     return [
         {
             "id": str(question.get("id", f"q{index + 1}")),
@@ -387,7 +399,9 @@ def build_research_report(
 
     for persona in persona_items:
         age_value = persona.get("age")
-        if isinstance(age_value, str):
+        if isinstance(age_value, (int, float)):
+            age_values.append(int(age_value))
+        elif isinstance(age_value, str):
             digits = re.findall(r"(\d+)", age_value)
             if digits:
                 age_values.append(int(digits[0]))
@@ -401,7 +415,7 @@ def build_research_report(
         for tech in _coerce_list(persona.get("technology_usage")):
             tech_counter[tech] += 1
 
-        big_five = persona.get("big_five") or {}
+        big_five = persona.get("big_five") or persona.get("big_five_personality") or {}
         if isinstance(big_five, Mapping):
             psych_counter["Openness"] += _coerce_score(big_five.get("openness"), 0.0)
             psych_counter["Conscientiousness"] += _coerce_score(big_five.get("conscientiousness"), 0.0)

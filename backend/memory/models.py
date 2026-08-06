@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 
@@ -12,7 +12,7 @@ class MemoryItem:
     memory_id: str
     persona_id: str
     text: str
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -23,7 +23,7 @@ class ConversationMessage:
 
     role: str  # "user" or "persona"
     message: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass

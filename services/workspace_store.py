@@ -30,6 +30,8 @@ def list_workspaces() -> List[Dict[str, Any]]:
 def save_workspace(
     *, experiment: Mapping[str, Any], personas: List[Mapping[str, Any]], survey_results: Mapping[str, Any] | None,
     interview_results: List[Mapping[str, Any]], insights: Mapping[str, Any] | None, persona_memories: Mapping[str, Any] | None = None,
+    research_plan: Mapping[str, Any] | None = None, focus_group_results: List[Mapping[str, Any]] | None = None,
+    consultant_report: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     if not experiment.get("experiment_name"):
         raise ValueError("An experiment name is required before saving a workspace.")
@@ -42,6 +44,9 @@ def save_workspace(
         "interview_results": [dict(item) for item in interview_results],
         "insights": dict(insights or {}),
         "persona_memories": dict(persona_memories or {}),
+        "research_plan": dict(research_plan or {}),
+        "focus_group_results": [dict(item) for item in (focus_group_results or [])],
+        "consultant_report": dict(consultant_report or {}),
     }
     records = [item for item in _read() if item.get("experiment", {}).get("experiment_name") != experiment.get("experiment_name")]
     records.append(record)

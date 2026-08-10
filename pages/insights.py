@@ -31,7 +31,12 @@ def main() -> None:
 
     survey_results = get_survey_results()
     interview_rows = get_interview_results()
-    if not survey_results and not interview_rows:
+    focus_rows = [
+        {"role": "persona", "message": turn.get("message", ""), "persona_name": turn.get("speaker", "")}
+        for turn in st.session_state.get("focus_group_results", []) if turn.get("role") == "participant"
+    ]
+    combined_rows = [*interview_rows, *focus_rows]
+    if not survey_results and not combined_rows:
         st.warning("Run the Survey or conduct at least one Interview before extracting insights.")
         st.page_link("pages/survey.py", label="Open Survey")
         st.page_link("pages/interview.py", label="Open Interview")
@@ -43,7 +48,7 @@ def main() -> None:
                 experiment=get_experiment(),
                 personas=personas,
                 survey_results=survey_results,
-                interview_rows=interview_rows,
+                interview_rows=combined_rows,
             )
         st.success("Insights extracted successfully.")
 
@@ -56,7 +61,7 @@ def main() -> None:
     metric_col1.metric("Sentiment", str(insights.get("sentiment", "N/A")).title())
     metric_col2.metric("Would Use Score", f"{float(insights.get('would_use_product_score', 0) or 0):.1f}")
     metric_col3.metric("Survey Responses", insights.get("response_count", 0))
-    metric_col4.metric("Interview Messages", insights.get("interview_message_count", 0))
+    metric_col4.metric("Conversation Signals", insights.get("interview_message_count", 0))
     st.caption(f"Analysis confidence: {float(insights.get('confidence_score', 0) or 0):.0f}%")
     st.info(str(insights.get("executive_summary", "")))
 

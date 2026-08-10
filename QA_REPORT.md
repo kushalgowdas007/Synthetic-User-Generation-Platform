@@ -28,3 +28,9 @@ Tested the workspace, persona generation, persona cards, survey, memory, intervi
 ## Final production readiness score
 
 **96/100** - all local functionality and offline resilience checks pass. The remaining score is reserved for a credentialed live-Gemini test, visual browser session check, and replacement of the stale developer virtual environment.
+## Upgrade QA
+
+- Passed: Python compilation for application, page, service, frontend, backend, and model packages.
+- Passed: deterministic smoke tests for Research Copilot, Focus Group, and Consultant services.
+- Checked: shared state includes new workflow artifacts and workspace save/load preserves them.
+- Not run: pytest, because the available bundled Python runtime has no pytest module and no project Python executable is configured on PATH.

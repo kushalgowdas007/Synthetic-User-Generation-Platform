@@ -1,16 +1,19 @@
-# Synthetic User Generation Platform
+# AI Research Studio
 
-An end-to-end Streamlit application for generating synthetic user personas, running simulated survey responses, and presenting analytics for product research.
+An end-to-end Streamlit product research platform for turning a product brief into synthetic personas, surveys, interviews, focus groups, insights, executive recommendations, and exportable reports.
 
 ## Demo Flow
 
 ```text
 Workspace
+  -> Research Copilot
   -> Generate Personas
   -> Persona Cards
   -> Survey
   -> Interview
+  -> Focus Group
   -> Insights
+  -> Product Consultant
   -> Dashboard
 ```
 
@@ -30,6 +33,10 @@ Workspace
 - Insight extraction for themes, sentiment, behavior patterns, recommendations, top quotes, product feedback, and segmentation.
 - Insight confidence, keyword frequency, topic clusters, risk analysis, and executive summary.
 - Dashboard page that reads experiment, personas, survey results, interview data, and insights for KPIs, charts, product-fit analytics, and report downloads.
+- Research Copilot that produces editable objectives, hypotheses, research questions, study questions, metrics, segments, validation, and competitor-analysis plans.
+- AI Focus Group with a moderator timeline and persona-specific agreement/challenge behavior.
+- Product Consultant with explainable launch readiness, market fit, risks, roadmap, feature priorities, and SWOT analysis.
+- One-click demo brief and a premium, responsive shared UI theme.
 
 ## Project Structure
 

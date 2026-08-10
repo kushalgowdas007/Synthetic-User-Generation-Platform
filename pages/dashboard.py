@@ -85,6 +85,7 @@ def main() -> None:
     survey_results = get_survey_results()
     interview_rows = get_interview_results()
     insights = get_insights()
+    consultant = st.session_state.get("consultant_report") or {}
     persona_df = persona_dataframe(personas)
     age_values = [value for value in persona_df["age"].dropna().tolist()]
     average_age = round(sum(age_values) / len(age_values), 1) if age_values else 0
@@ -99,6 +100,10 @@ def main() -> None:
     extra_col1, extra_col2 = st.columns(2)
     extra_col1.metric("Interview Messages", len(interview_rows))
     extra_col2.metric("Recommendation Score", f"{float((insights or {}).get('would_use_product_score', 0) or 0):.1f} / 100" if insights else "Pending")
+    if consultant:
+        readiness_col1, readiness_col2 = st.columns(2)
+        readiness_col1.metric("Launch Readiness", f"{consultant.get('launch_readiness', 0)}%")
+        readiness_col2.metric("Risk Score", f"{consultant.get('risk_score', 0)}/100")
 
     if experiment:
         with st.expander("Experiment", expanded=False):
@@ -185,6 +190,7 @@ def main() -> None:
         {"Stage": "Generated personas", "Complete": len(personas)},
         {"Stage": "Survey responses", "Complete": len(survey_results.get("responses", [])) if survey_results else 0},
         {"Stage": "Interview messages", "Complete": len(interview_rows)},
+        {"Stage": "Focus group turns", "Complete": len(st.session_state.get("focus_group_results", []))},
     ])
     st.plotly_chart(px.bar(completion_frame, x="Stage", y="Complete", title="Workflow Completion"), use_container_width=True)
 
@@ -199,6 +205,8 @@ def main() -> None:
                 survey_results=survey_results,
                 interview_rows=interview_rows,
                 insights=insights,
+                focus_group_results=st.session_state.get("focus_group_results", []),
+                consultant_report=consultant,
                 analytics=analytics,
             ),
             file_name="synthetic_user_report.json",

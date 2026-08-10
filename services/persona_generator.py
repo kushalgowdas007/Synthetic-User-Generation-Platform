@@ -413,6 +413,7 @@ Persona seed:
             "pincode": self._coerce_text(persona.get("pincode") or persona.get("postcode"), fake_details["pincode"]),
         }
         normalized["quality_score"] = self._quality_score(normalized)
+        normalized.update(self._quality_dimensions(normalized))
         return normalized
 
     def _deduplicate_and_score(self, personas: List[Dict[str, Any]], context: Mapping[str, Any]) -> List[Dict[str, Any]]:
@@ -430,6 +431,7 @@ Persona seed:
             seen_names.add(name_key)
             seen_bios.add(bio_key)
             persona["quality_score"] = self._quality_score(persona)
+            persona.update(self._quality_dimensions(persona))
             unique.append(persona)
 
         return unique
@@ -446,6 +448,16 @@ Persona seed:
         realism = 0.85 if len(str(persona.get("bio", ""))) > 80 else 0.65
         score = (completeness * 40) + (max(consistency, 0.0) * 35) + (realism * 25)
         return max(0, min(100, round(score)))
+
+    def _quality_dimensions(self, persona: Mapping[str, Any]) -> Dict[str, int]:
+        """Expose interpretable quality signals alongside the composite score."""
+        completeness = sum(1 for field in REQUIRED_FIELDS if persona.get(field) not in (None, "", [], {})) / len(REQUIRED_FIELDS)
+        age = self._coerce_age(persona.get("age"))
+        occupation = str(persona.get("occupation", "")).lower()
+        consistency = 92 if not (age < 22 and any(role in occupation for role in ("senior", "director", "manager"))) else 68
+        realism = min(96, 60 + min(24, len(str(persona.get("bio", ""))) // 8) + (8 if len(self._coerce_list(persona.get("pain_points"))) >= 2 else 0))
+        confidence = round((completeness * 55) + (consistency * .25) + (realism * .20))
+        return {"persona_confidence_score": max(0, min(100, confidence)), "realism_score": realism, "consistency_score": consistency}
 
     def _model_candidates(self) -> List[str]:
         candidates = [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]

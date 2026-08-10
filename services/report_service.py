@@ -58,6 +58,8 @@ def export_full_research_report_pdf(
     survey_results: Mapping[str, Any] | None,
     interview_rows: Sequence[Mapping[str, Any]],
     insights: Mapping[str, Any] | None,
+    focus_group_results: Sequence[Mapping[str, Any]] | None = None,
+    consultant_report: Mapping[str, Any] | None = None,
 ) -> bytes:
     fallback_lines = [
         "Synthetic User Generation Platform - Research Report",
@@ -129,6 +131,14 @@ def export_full_research_report_pdf(
         story.append(para("Charts represented in the dashboard: persona distribution, age distribution, occupation, sentiment, product fit, theme frequency, response count, and recommendation score."))
     else:
         story.append(para("No insights generated."))
+
+    story.append(Spacer(1, 10))
+    story.append(para("Focus Group & Executive Recommendation", "Heading2"))
+    story.append(para(f"Focus group turns: {len(focus_group_results or [])}"))
+    if consultant_report:
+        story.append(para(f"Launch readiness: {consultant_report.get('launch_readiness', 'N/A')}%"))
+        story.append(para(f"Market fit: {consultant_report.get('market_fit', 'N/A')}/100"))
+        story.append(para(f"Recommendation rationale: {consultant_report.get('why', '')}"))
 
     try:
         doc.build(story)

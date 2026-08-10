@@ -11,10 +11,13 @@ import streamlit as st
 
 PAGE_LINKS = [
     ("app.py", "Home / Workspace"),
+    ("pages/research_copilot.py", "Research Copilot"),
     ("pages/persona_cards.py", "Persona Cards"),
     ("pages/survey.py", "Survey"),
     ("pages/interview.py", "Interview"),
+    ("pages/focus_group.py", "Focus Group"),
     ("pages/insights.py", "Insights"),
+    ("pages/consultant.py", "Product Consultant"),
     ("pages/dashboard.py", "Dashboard"),
 ]
 
@@ -27,6 +30,27 @@ def init_session_state() -> None:
     st.session_state.setdefault("persona_memories", {})
     st.session_state.setdefault("interview_results", [])
     st.session_state.setdefault("insights", None)
+    st.session_state.setdefault("research_plan", None)
+    st.session_state.setdefault("focus_group_results", [])
+    st.session_state.setdefault("consultant_report", None)
+    st.session_state.setdefault("toast_message", "")
+
+
+def apply_premium_theme() -> None:
+    """Small shared design system; kept CSS-only so every existing page benefits."""
+    st.markdown("""<style>
+    :root { --ink:#e8edf8; --muted:#9aa8c1; --panel:rgba(17,25,45,.78); --accent:#7c8cff; }
+    .stApp { background: radial-gradient(circle at 82% 0%, #202b58 0%, #0c1120 40%, #090d18 100%); color:var(--ink); }
+    [data-testid="stSidebar"] { background: linear-gradient(180deg,#111a31,#0a0f1d); border-right:1px solid #273250; }
+    [data-testid="stSidebar"] .stPageLink a { border-radius:10px; padding:.45rem .6rem; transition:.18s ease; }
+    [data-testid="stSidebar"] .stPageLink a:hover { background:#24315d; transform:translateX(2px); }
+    div[data-testid="stMetric"] { background:var(--panel); border:1px solid #2a385d; border-radius:14px; padding:14px; }
+    div[data-testid="stMetric"]:hover { border-color:#7184ff; transform:translateY(-2px); transition:.18s ease; }
+    .stButton > button, .stDownloadButton > button { border-radius:10px; border:0; background:linear-gradient(135deg,#7282ff,#a164ff); color:white; font-weight:650; }
+    .stButton > button:hover, .stDownloadButton > button:hover { filter:brightness(1.12); transform:translateY(-1px); }
+    .research-hero { padding:1.35rem 1.5rem; border:1px solid #344779; border-radius:18px; background:linear-gradient(115deg,rgba(73,89,178,.40),rgba(21,29,54,.72)); margin-bottom:1rem; }
+    .research-hero h1 { margin:0; font-size:2rem; } .research-hero p { color:var(--muted); margin:.35rem 0 0; }
+    </style>""", unsafe_allow_html=True)
 
 
 def get_personas() -> List[Dict[str, Any]]:
@@ -64,6 +88,8 @@ def save_personas(personas: List[Dict[str, Any]]) -> None:
     st.session_state["persona_memories"] = {}
     st.session_state["interview_results"] = []
     st.session_state["insights"] = None
+    st.session_state["focus_group_results"] = []
+    st.session_state["consultant_report"] = None
 
 
 def render_sidebar(active_label: str) -> None:
@@ -75,8 +101,8 @@ def render_sidebar(active_label: str) -> None:
     responses = survey_results.get("responses", []) if survey_results else []
 
     with st.sidebar:
-        st.title("Synthetic Users")
-        st.caption("Workspace -> Personas -> Survey -> Interview -> Insights -> Dashboard")
+        st.title("◈ AI Research Studio")
+        st.caption("From research brief to launch decision")
         for path, label in PAGE_LINKS:
             prefix = ">" if label == active_label else ""
             st.page_link(path, label=f"{prefix} {label}".strip())
@@ -85,6 +111,7 @@ def render_sidebar(active_label: str) -> None:
         st.metric("Personas", len(personas))
         st.metric("Survey responses", len(responses))
         st.metric("Interview messages", len(interview_results))
+        st.metric("Focus group turns", len(st.session_state.get("focus_group_results", [])))
 
         if personas and responses and insights:
             st.success("Workflow complete")
@@ -97,8 +124,11 @@ def render_sidebar(active_label: str) -> None:
 
 
 def render_page_header(title: str, caption: str) -> None:
-    st.title(title)
-    st.caption(caption)
+    apply_premium_theme()
+    st.markdown(f'<div class="research-hero"><h1>{title}</h1><p>{caption}</p></div>', unsafe_allow_html=True)
+    message = st.session_state.pop("toast_message", "")
+    if message:
+        st.toast(message, icon="✨")
 
 
 def as_text(value: Any, default: str = "Not provided") -> str:

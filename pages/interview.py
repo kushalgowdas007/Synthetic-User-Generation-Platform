@@ -47,11 +47,19 @@ def main() -> None:
         st.subheader("Memory")
         st.json(memories[persona_id].get("opinions", {}))
 
+    suggestion_cols = st.columns(3)
+    suggestions = ["What would make you try this?", "What concerns you about pricing?", "What would make you trust it?"]
+    for column, suggestion in zip(suggestion_cols, suggestions):
+        with column:
+            if st.button(suggestion, key=f"suggestion_{suggestion}", use_container_width=True):
+                st.session_state["interview_draft"] = suggestion
+
     for item in memories[persona_id].get("history", []):
         with st.chat_message("user" if item.get("role") == "user" else "assistant"):
             st.write(item.get("message", ""))
 
     question = st.chat_input("Ask this persona about needs, pricing, adoption, frustrations, or product fit")
+    question = question or st.session_state.pop("interview_draft", None)
     if question:
         with st.spinner("Interviewing persona..."):
             result = generate_interview_reply(

@@ -412,7 +412,12 @@ Persona seed:
             "state": self._coerce_text(persona.get("state"), fake_details["state"]),
             "pincode": self._coerce_text(persona.get("pincode") or persona.get("postcode"), fake_details["pincode"]),
         }
+
         normalized.update(self._quality_scores(normalized))
+
+        normalized["quality_score"] = self._quality_score(normalized)
+        normalized.update(self._quality_dimensions(normalized))
+
         return normalized
 
     def _deduplicate_and_score(self, personas: List[Dict[str, Any]], context: Mapping[str, Any]) -> List[Dict[str, Any]]:
@@ -429,6 +434,11 @@ Persona seed:
                 bio_key = str(persona["bio"]).lower()
             seen_names.add(name_key)
             seen_bios.add(bio_key)
+
+
+            persona["quality_score"] = self._quality_score(persona)
+            persona.update(self._quality_dimensions(persona))
+
             unique.append(persona)
 
         for persona in unique:
@@ -504,6 +514,7 @@ Persona seed:
             score -= 12
         return max(0, min(100, round(score)))
 
+
     def _diversity_score(self, persona: Mapping[str, Any], peers: Sequence[Mapping[str, Any]]) -> int:
         if not peers:
             return 82
@@ -548,6 +559,16 @@ Persona seed:
         if age < 55:
             return "45-54"
         return "55+"
+    def _quality_dimensions(self, persona: Mapping[str, Any]) -> Dict[str, int]:
+        """Expose interpretable quality signals alongside the composite score."""
+        completeness = sum(1 for field in REQUIRED_FIELDS if persona.get(field) not in (None, "", [], {})) / len(REQUIRED_FIELDS)
+        age = self._coerce_age(persona.get("age"))
+        occupation = str(persona.get("occupation", "")).lower()
+        consistency = 92 if not (age < 22 and any(role in occupation for role in ("senior", "director", "manager"))) else 68
+        realism = min(96, 60 + min(24, len(str(persona.get("bio", ""))) // 8) + (8 if len(self._coerce_list(persona.get("pain_points"))) >= 2 else 0))
+        confidence = round((completeness * 55) + (consistency * .25) + (realism * .20))
+        return {"persona_confidence_score": max(0, min(100, confidence)), "realism_score": realism, "consistency_score": consistency}
+
 
     def _model_candidates(self) -> List[str]:
         candidates = [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]

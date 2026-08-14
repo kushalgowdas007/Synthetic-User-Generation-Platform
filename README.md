@@ -1,16 +1,19 @@
-# Synthetic User Generation Platform
+# AI Research Studio
 
-An end-to-end Streamlit application for generating synthetic user personas, running simulated survey responses, and presenting analytics for product research.
+An end-to-end Streamlit product research platform for turning a product brief into synthetic personas, surveys, interviews, focus groups, insights, executive recommendations, and exportable reports.
 
 ## Demo Flow
 
 ```text
 Workspace
+  -> Research Copilot
   -> Generate Personas
   -> Persona Cards
   -> Survey
   -> Interview
+  -> Focus Group
   -> Insights
+  -> Product Consultant
   -> Dashboard
 ```
 
@@ -22,11 +25,18 @@ Workspace
 - Gemini generation through the current `google-genai` SDK with Faker-backed contact enrichment.
 - Local Faker fallback when Gemini credentials or API access are unavailable.
 - Shared `st.session_state["personas"]`, `st.session_state["experiment"]`, and `st.session_state["survey_results"]` across all pages.
+- Explicit local workspace save/load and experiment history in `data/workspace_history.json`; saved workspaces also retain interview memory.
 - Persona Cards page with search, filters, sorting, cards, CSV export, and JSON export.
 - Survey page that consumes generated personas without regenerating them.
+- Survey templates for adoption, pricing/value, and usability/trust, with optional custom questions.
 - Interview mode with persona memory, opinions, and conversation history.
 - Insight extraction for themes, sentiment, behavior patterns, recommendations, top quotes, product feedback, and segmentation.
+- Insight confidence, keyword frequency, topic clusters, risk analysis, and executive summary.
 - Dashboard page that reads experiment, personas, survey results, interview data, and insights for KPIs, charts, product-fit analytics, and report downloads.
+- Research Copilot that produces editable objectives, hypotheses, research questions, study questions, metrics, segments, validation, and competitor-analysis plans.
+- AI Focus Group with a moderator timeline and persona-specific agreement/challenge behavior.
+- Product Consultant with explainable launch readiness, market fit, risks, roadmap, feature priorities, and SWOT analysis.
+- One-click demo brief and a premium, responsive shared UI theme.
 
 ## Project Structure
 
@@ -84,6 +94,12 @@ streamlit run app.py
 python -m compileall app.py services pages frontend backend models
 python -m pytest
 ```
+
+For an optional live Gemini check, set `RUN_LIVE_GEMINI_TESTS=1` and provide `GEMINI_API_KEY`. Normal tests use local deterministic fallbacks and never require a network call.
+
+## Deployment
+
+Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) in the deployment secret manager, install `requirements.txt`, and run `streamlit run app.py`. Do not commit a populated `.env` file. The application remains fully usable without Gemini through its Faker-backed persona and local interview fallbacks.
 
 ## Presentation Notes
 

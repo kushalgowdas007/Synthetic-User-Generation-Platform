@@ -112,11 +112,18 @@ def render_persona_card(persona: dict) -> None:
             metric_col1.metric("Income", as_text(persona.get("income")))
             metric_col2.metric("Education", as_text(persona.get("education")))
             metric_col3.metric("Quality", as_text(persona.get("quality_score"), "N/A"))
+
             score_col1, score_col2, score_col3, score_col4 = st.columns(4)
             score_col1.metric("Diversity", as_text(persona.get("diversity_score"), "N/A"))
             score_col2.metric("Validation", as_text(persona.get("validation_score"), "N/A"))
             score_col3.metric("Completeness", as_text(persona.get("completeness_score"), "N/A"))
             score_col4.metric("Consistency", as_text(persona.get("consistency_score"), "N/A"))
+
+        score_col1, score_col2, score_col3 = st.columns(3)
+        score_col1.caption(f"Confidence {as_text(persona.get('persona_confidence_score'), 'N/A')}%")
+        score_col2.caption(f"Realism {as_text(persona.get('realism_score'), 'N/A')}%")
+        score_col3.caption(f"Consistency {as_text(persona.get('consistency_score'), 'N/A')}%")
+
 
         st.write(as_text(persona.get("bio"), "No biography provided."))
         st.caption(f"Location: {as_text(persona.get('city') or persona.get('location'))} | Lifestyle: {as_text(persona.get('lifestyle'))}")
@@ -156,6 +163,11 @@ def main() -> None:
     if personas is None:
         return
 
+    view_col, score_col = st.columns([1, 2])
+    with view_col:
+        view_mode = st.radio("View", ["Gallery", "List"], horizontal=True)
+    with score_col:
+        st.caption("Quality score combines data completeness, consistency, and behavioral realism.")
     visible_personas = filtered_personas(get_personas())
     st.caption(f"Showing {len(visible_personas)} of {len(personas)} personas")
 
@@ -182,8 +194,14 @@ def main() -> None:
         st.info("No personas match the current filters.")
         return
 
-    for persona in visible_personas:
-        render_persona_card(persona)
+    if view_mode == "List":
+        st.dataframe(records_to_dataframe(visible_personas), use_container_width=True, hide_index=True)
+    else:
+        for start in range(0, len(visible_personas), 2):
+            columns = st.columns(2)
+            for column, persona in zip(columns, visible_personas[start:start + 2]):
+                with column:
+                    render_persona_card(persona)
 
 
 if __name__ == "__main__":

@@ -31,7 +31,12 @@ def main() -> None:
 
     survey_results = get_survey_results()
     interview_rows = get_interview_results()
-    if not survey_results and not interview_rows:
+    focus_rows = [
+        {"role": "persona", "message": turn.get("message", ""), "persona_name": turn.get("speaker", "")}
+        for turn in st.session_state.get("focus_group_results", []) if turn.get("role") == "participant"
+    ]
+    combined_rows = [*interview_rows, *focus_rows]
+    if not survey_results and not combined_rows:
         st.warning("Run the Survey or conduct at least one Interview before extracting insights.")
         st.page_link("pages/survey.py", label="Open Survey")
         st.page_link("pages/interview.py", label="Open Interview")
@@ -43,7 +48,7 @@ def main() -> None:
                 experiment=get_experiment(),
                 personas=personas,
                 survey_results=survey_results,
-                interview_rows=interview_rows,
+                interview_rows=combined_rows,
             )
         st.success("Insights extracted successfully.")
 
@@ -56,6 +61,7 @@ def main() -> None:
     metric_col1.metric("Sentiment", str(insights.get("sentiment", "N/A")).title())
     metric_col2.metric("Product Fit", f"{float(insights.get('product_fit_score', 0) or 0):.1f}")
     metric_col3.metric("Survey Responses", insights.get("response_count", 0))
+
     metric_col4.metric("Interview Messages", insights.get("interview_message_count", 0))
     score_col1, score_col2 = st.columns(2)
     score_col1.metric(
@@ -67,6 +73,11 @@ def main() -> None:
         "Product Fit Confidence",
         f"{float(insights.get('product_fit_confidence_score', 0) or 0):.0f}",
     )
+
+    metric_col4.metric("Conversation Signals", insights.get("interview_message_count", 0))
+    st.caption(f"Analysis confidence: {float(insights.get('confidence_score', 0) or 0):.0f}%")
+    st.info(str(insights.get("executive_summary", "")))
+
 
     theme_df = pd.DataFrame(insights.get("themes", []))
     if not theme_df.empty:
@@ -122,6 +133,14 @@ def main() -> None:
 
     with st.expander("Persona Segmentation", expanded=False):
         st.json(insights.get("persona_segmentation", {}))
+    with st.expander("Topic clusters, keywords, and risks", expanded=False):
+        st.write("**Topic clusters**")
+        st.json(insights.get("topic_clusters", []))
+        st.write("**Keyword frequency**")
+        st.json(insights.get("keyword_frequency", []))
+        st.write("**Risk analysis**")
+        for risk in insights.get("risk_analysis", []):
+            st.write(f"- {risk}")
 
     st.download_button(
         "Download insights JSON",

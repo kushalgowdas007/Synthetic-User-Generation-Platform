@@ -201,6 +201,21 @@ def extract_research_insights(
         if count > 0
     ]
 
+    tokens = [token for token in re.findall(r"[a-z]{4,}", combined) if token not in {"this", "that", "with", "from", "would", "product", "because", "response", "persona"}]
+    keyword_frequency = [{"keyword": word, "count": count} for word, count in Counter(tokens).most_common(12)]
+    topic_clusters = [
+        {"topic": theme, "keywords": keywords, "mentions": theme_counter[theme]}
+        for theme, keywords in THEME_KEYWORDS.items() if theme_counter[theme]
+    ]
+    risks = []
+    for theme in ("Pricing", "Trust", "Risk", "Onboarding"):
+        if theme_counter[theme]:
+            risks.append(f"{theme} is a recurring adoption risk and should be addressed before launch.")
+    if product_fit < 50:
+        risks.append("The current product-fit score is below the validation threshold.")
+    confidence = min(100, round(35 + min(len(texts), 30) * 2 + min(sum(theme_counter.values()), 20) * 1.5, 1))
+    executive_summary = _summarize_feedback(theme_counter, product_fit)
+
     return {
         "product_name": experiment.get("product_name", ""),
         "themes": themes,
@@ -242,10 +257,20 @@ def extract_research_insights(
             for segment, names in segment_map.items()
         },
         "top_quotes": top_quotes,
+
         "final_ai_recommendations": final_recommendations,
         "recommendations": [item["recommendation"] for item in final_recommendations],
         "product_feedback": _summarize_feedback(theme_counter, product_fit),
         "would_use_product_score": recommendation_score,
+
+        "would_use_product_score": product_fit,
+        "persona_segmentation": dict(segment_map),
+        "keyword_frequency": keyword_frequency,
+        "topic_clusters": topic_clusters,
+        "risk_analysis": risks or ["No material risk signal was detected in the available responses."],
+        "confidence_score": confidence,
+        "executive_summary": executive_summary,
+
         "response_count": len((survey_results or {}).get("responses", [])),
         "interview_message_count": len(interview_rows),
     }

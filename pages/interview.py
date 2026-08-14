@@ -56,6 +56,13 @@ def main() -> None:
         with st.expander("Tracked Opinions", expanded=False):
             st.json(memory_payload.get("opinions", {}))
 
+    suggestion_cols = st.columns(3)
+    suggestions = ["What would make you try this?", "What concerns you about pricing?", "What would make you trust it?"]
+    for column, suggestion in zip(suggestion_cols, suggestions):
+        with column:
+            if st.button(suggestion, key=f"suggestion_{suggestion}", use_container_width=True):
+                st.session_state["interview_draft"] = suggestion
+
     for item in memories[persona_id].get("history", []):
         with st.chat_message("user" if item.get("role") == "user" else "assistant"):
             st.write(item.get("message", ""))
@@ -69,8 +76,13 @@ def main() -> None:
                 follow_up_question = str(follow_up)
 
     question = st.chat_input("Ask this persona about needs, pricing, adoption, frustrations, or product fit")
+
     active_question = question or follow_up_question
     if active_question:
+
+     question = question or st.session_state.pop("interview_draft", None)
+    if question:
+
         with st.spinner("Interviewing persona..."):
             result = generate_interview_reply(
                 persona=persona,

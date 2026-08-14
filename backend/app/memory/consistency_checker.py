@@ -53,3 +53,9 @@ class ConsistencyChecker:
             "logical_valid": logical_valid,
             "consistency_score": cls.consistency_score(matches, 3),
         }
+
+"""Compatibility adapter for the application-layer memory import path."""
+from backend.memory.consistency_checker import ConsistencyChecker
+
+__all__ = ["ConsistencyChecker"]
+

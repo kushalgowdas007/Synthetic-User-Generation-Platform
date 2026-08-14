@@ -129,6 +129,8 @@ def export_full_research_report_pdf(
     survey_results: Mapping[str, Any] | None,
     interview_rows: Sequence[Mapping[str, Any]],
     insights: Mapping[str, Any] | None,
+    focus_group_results: Sequence[Mapping[str, Any]] | None = None,
+    consultant_report: Mapping[str, Any] | None = None,
 ) -> bytes:
     fallback_lines = _fallback_lines(
         experiment=experiment,
@@ -263,6 +265,7 @@ def export_full_research_report_pdf(
     else:
         story.append(para("No insights generated."))
 
+
     story.extend(heading("Charts"))
     story.append(
         para(
@@ -285,6 +288,15 @@ def export_full_research_report_pdf(
     occupation_counter = Counter(str(persona.get("occupation", "N/A")) for persona in personas)
     story.append(para("Occupation distribution: " + json.dumps(dict(occupation_counter), ensure_ascii=False)))
     story.append(para("Full structured JSON exports are available from the Dashboard export tab."))
+
+    story.append(Spacer(1, 10))
+    story.append(para("Focus Group & Executive Recommendation", "Heading2"))
+    story.append(para(f"Focus group turns: {len(focus_group_results or [])}"))
+    if consultant_report:
+        story.append(para(f"Launch readiness: {consultant_report.get('launch_readiness', 'N/A')}%"))
+        story.append(para(f"Market fit: {consultant_report.get('market_fit', 'N/A')}/100"))
+        story.append(para(f"Recommendation rationale: {consultant_report.get('why', '')}"))
+
 
     try:
         doc.build(story)

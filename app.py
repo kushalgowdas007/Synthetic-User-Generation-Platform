@@ -4,10 +4,14 @@ import json
 from typing import Any, Dict
 
 import streamlit as st
-
 from frontend.shared import (
     get_experiment,
+
     get_experiment_history,
+
+    get_insights,
+    get_interview_results,
+
     get_personas,
     get_survey_results,
     init_session_state,
@@ -17,6 +21,7 @@ from frontend.shared import (
     save_personas,
 )
 from services.persona_generator import PersonaGenerator
+from services.workspace_store import list_workspaces, load_workspace, save_workspace
 
 
 def build_experiment_payload(
@@ -96,13 +101,64 @@ def render_experiment_history() -> None:
 
 def render_workspace() -> None:
     render_page_header(
-        "Synthetic User Generation Platform",
-        "Create one experiment, generate personas once, and reuse the same session data throughout the workflow.",
+        "AI Research Studio",
+        "A complete AI research workflow—from a product brief to an executive launch decision.",
     )
+
+    hero_left, hero_right = st.columns([3, 1])
+    with hero_left:
+        st.caption("Research Copilot → Personas → Survey → Interviews → Focus Group → Insights → Executive Decision")
+    with hero_right:
+        if st.button("Load demo brief", use_container_width=True):
+            st.session_state["experiment"] = {"experiment_name":"Orbit launch validation", "product_name":"Orbit", "description":"An AI workspace that turns scattered product feedback into clear product decisions.", "target_audience":"Startup product managers and UX researchers in India", "research_objective":"Validate adoption barriers, trust, and willingness to pay.", "research_goal":"Validate adoption barriers, trust, and willingness to pay.", "industry":"Technology", "simulation_type":"Customer Persona", "persona_count":4, "age":"24-45", "gender":"Mixed", "profession":"Product Manager", "location":"India", "interests":"AI, product discovery, productivity"}
+            st.session_state["toast_message"] = "Demo brief loaded. Generate personas when ready."
+            st.rerun()
 
     personas = get_personas()
     experiment = get_experiment()
     survey_results = get_survey_results()
+
+    with st.expander("Saved workspaces", expanded=False):
+        saved_workspaces = list_workspaces()
+        if saved_workspaces:
+            labels = {
+                record["id"]: f"{record.get('experiment', {}).get('experiment_name', 'Untitled')} — {record.get('saved_at', '')[:19]}"
+                for record in saved_workspaces
+            }
+            selected_id = st.selectbox("Experiment history", list(labels), format_func=labels.get)
+            if st.button("Load selected workspace"):
+                record = load_workspace(selected_id)
+                if record:
+                    st.session_state["experiment"] = record.get("experiment", {})
+                    st.session_state["personas"] = record.get("personas", [])
+                    st.session_state["survey_results"] = record.get("survey_results") or None
+                    st.session_state["interview_results"] = record.get("interview_results", [])
+                    st.session_state["insights"] = record.get("insights") or None
+                    st.session_state["persona_memories"] = record.get("persona_memories", {})
+                    st.session_state["research_plan"] = record.get("research_plan") or None
+                    st.session_state["focus_group_results"] = record.get("focus_group_results", [])
+                    st.session_state["consultant_report"] = record.get("consultant_report") or None
+                    st.success("Workspace loaded into this session.")
+                    st.rerun()
+        else:
+            st.caption("No saved workspaces yet.")
+
+        if experiment and st.button("Save current workspace"):
+            try:
+                save_workspace(
+                    experiment=experiment,
+                    personas=personas,
+                    survey_results=survey_results,
+                    interview_results=get_interview_results(),
+                    insights=get_insights(),
+                    persona_memories=st.session_state.get("persona_memories", {}),
+                    research_plan=st.session_state.get("research_plan") or {},
+                    focus_group_results=st.session_state.get("focus_group_results", []),
+                    consultant_report=st.session_state.get("consultant_report") or {},
+                )
+                st.success("Workspace saved. It is now available in experiment history.")
+            except (OSError, ValueError) as exc:
+                st.error(f"Unable to save workspace. Detail: {exc}")
 
     if personas:
         st.success(f"{len(personas)} personas are stored in this session.")
@@ -259,6 +315,9 @@ def render_workspace() -> None:
     metric_col2.metric("Experiment", "Saved" if get_experiment() else "Pending")
     metric_col3.metric("Survey", "Complete" if survey_results else "Pending")
     metric_col4.metric("Responses", len(survey_results.get("responses", [])) if survey_results else 0)
+    if not get_experiment():
+        st.info("Start with Research Copilot for a guided research blueprint, or load the demo brief for a fast walkthrough.")
+        st.page_link("pages/research_copilot.py", label="Open Research Copilot")
 
     if get_experiment():
         with st.expander("Experiment configuration", expanded=False):

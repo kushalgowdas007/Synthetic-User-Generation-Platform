@@ -7,6 +7,9 @@ from html import escape
 from io import BytesIO
 from typing import Any, Iterable, List, Mapping, Sequence
 
+from services.cache_service import compute_report_signature, report_cache
+from services.telemetry import time_stage
+
 
 def _as_list(value: Any) -> List[str]:
     if value is None:
@@ -81,45 +84,37 @@ def _fallback_lines(
     survey_results: Mapping[str, Any] | None,
     interview_rows: Sequence[Mapping[str, Any]],
     insights: Mapping[str, Any] | None,
+    consultant_report: Mapping[str, Any] | None = None,
 ) -> List[str]:
     recommendations = [
         item.get("recommendation", item) if isinstance(item, Mapping) else item
         for item in (insights or {}).get("final_ai_recommendations", (insights or {}).get("recommendations", []))
     ]
+    top_decisions = (consultant_report or {}).get("top_decisions", [])
+    decision_lines = [f"Decision: {d.get('title', '')} | Priority {d.get('priority', '')}/100" for d in top_decisions]
+
     return [
-        "Synthetic User Generation Platform - Professional Research Report",
-        f"Generated: {datetime.now(timezone.utc).isoformat()}",
-        "Cover Page",
-        f"Experiment: {experiment.get('experiment_name', 'N/A')}",
+        "AI Research Studio - Synthetic User Intelligence Report",
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        "Notice: Synthetic Research Simulation - For Internal Product Strategy & Discovery",
+        "--------------------------------------------------------------------------------",
+        f"Experiment: {experiment.get('experiment_name', 'Untitled')}",
         f"Product: {experiment.get('product_name', 'N/A')}",
-        "Executive Summary",
-        str((insights or {}).get("product_feedback", "Insights have not been generated yet.")),
-        "Experiment Details",
-        f"Audience: {experiment.get('target_audience', 'N/A')}",
+        f"Target Audience: {experiment.get('target_audience', 'N/A')}",
         f"Research Objective: {experiment.get('research_objective', experiment.get('research_goal', 'N/A'))}",
+        "Executive Summary",
+        str((insights or {}).get("product_feedback", "Insights have not been extracted yet.")),
+        "Launch Readiness & Strategy",
+        f"Launch Readiness: {(consultant_report or {}).get('launch_readiness', 'N/A')}% | Market Fit: {(consultant_report or {}).get('market_fit', 'N/A')}/100",
+        *decision_lines,
         "Generated Personas",
-        *[f"{persona.get('name', 'Persona')} | {persona.get('occupation', 'N/A')} | Quality {persona.get('quality_score', 'N/A')}" for persona in personas[:12]],
-        "Survey Results",
-        f"Responses: {len((survey_results or {}).get('responses', []))}",
-        f"Product Fit: {(survey_results or {}).get('product_fit_score', (insights or {}).get('product_fit_score', 0))}",
-        "Interview Results",
-        f"Interview Messages: {len(interview_rows)}",
-        "Insights",
-        f"Sentiment: {(insights or {}).get('sentiment', 'N/A')}",
-        f"Recommendation Score: {(insights or {}).get('recommendation_score', 0)}",
-        "Charts",
-        "Dashboard charts include pie, bar, line, radar, gauge, word cloud, and trend visualizations.",
-        "Product Validation",
-        str((insights or {}).get("product_feedback", "Pending insight extraction.")),
-        "Recommendations",
-        *[f"- {recommendation}" for recommendation in recommendations[:10]],
-        "Appendix",
-        "Full JSON exports are available from the dashboard.",
+        *[f"- {p.get('name', 'Persona')} | {p.get('occupation', 'N/A')} | Quality: {p.get('quality_score', 'N/A')}/100 ({p.get('quality_status', 'Valid')})" for p in personas[:10]],
+        "Survey Analytics",
+        f"Total Responses: {len((survey_results or {}).get('responses', []))}",
+        f"Product Fit Score: {(survey_results or {}).get('product_fit_score', (insights or {}).get('product_fit_score', 0))}/100",
+        "Key Recommendations",
+        *[f"- {r}" for r in recommendations[:6]],
     ]
-
-
-def _paragraphs_from_items(items: Iterable[Any]) -> List[str]:
-    return [str(item.get("recommendation", item)) if isinstance(item, Mapping) else str(item) for item in items]
 
 
 def export_full_research_report_pdf(
@@ -131,175 +126,179 @@ def export_full_research_report_pdf(
     insights: Mapping[str, Any] | None,
     focus_group_results: Sequence[Mapping[str, Any]] | None = None,
     consultant_report: Mapping[str, Any] | None = None,
+    bypass_cache: bool = False,
 ) -> bytes:
-    fallback_lines = _fallback_lines(
-        experiment=experiment,
-        personas=personas,
-        survey_results=survey_results,
-        interview_rows=interview_rows,
-        insights=insights,
+    """Generates an executive PDF report with deterministic caching and evidence sections."""
+    exp_sig = str(experiment.get("experiment_id", experiment.get("experiment_name", "")))
+    ins_sig = str((insights or {}).get("product_fit_score", 0)) + f":{len((insights or {}).get('themes', []))}"
+    report_sig = compute_report_signature(
+        experiment_sig=exp_sig,
+        insight_sig=ins_sig,
+        has_consultant_report=bool(consultant_report),
+        persona_count=len(personas),
     )
 
-    try:
-        from reportlab.lib import colors
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-    except Exception:
-        return _minimal_pdf(fallback_lines)
+    if not bypass_cache:
+        cached_pdf = report_cache.get(report_sig)
+        if cached_pdf:
+            return cached_pdf
 
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=42, leftMargin=42, topMargin=42, bottomMargin=42)
-    styles = getSampleStyleSheet()
+    with time_stage("report_generation"):
+        fallback_lines = _fallback_lines(
+            experiment=experiment,
+            personas=personas,
+            survey_results=survey_results,
+            interview_rows=interview_rows,
+            insights=insights,
+            consultant_report=consultant_report,
+        )
 
-    def para(text: Any, style_name: str = "BodyText") -> Paragraph:
-        return Paragraph(escape(str(text)), styles[style_name])
+        try:
+            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+            from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    def heading(title: str) -> List[Any]:
-        return [Spacer(1, 8), para(title, "Heading2"), Spacer(1, 4)]
-
-    def table(rows: Sequence[Sequence[Any]]) -> Table:
-        prepared = [[escape(str(cell)) for cell in row] for row in rows]
-        output = Table(prepared, hAlign="LEFT", repeatRows=1)
-        output.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ]
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=letter,
+                leftMargin=40,
+                rightMargin=40,
+                topMargin=40,
+                bottomMargin=40,
             )
-        )
-        return output
 
-    survey_responses = (survey_results or {}).get("responses", [])
-    recommendations = _paragraphs_from_items((insights or {}).get("final_ai_recommendations", (insights or {}).get("recommendations", [])))
-    quality_values = [_score(persona.get("quality_score")) for persona in personas if persona.get("quality_score") is not None]
-    average_quality = round(sum(quality_values) / len(quality_values), 1) if quality_values else 0
-    product_fit = (insights or {}).get("product_fit_score", (survey_results or {}).get("product_fit_score", 0))
-    recommendation_score = (insights or {}).get("recommendation_score", (insights or {}).get("would_use_product_score", 0))
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle(
+                "CoverTitle",
+                parent=styles["Title"],
+                fontName="Helvetica-Bold",
+                fontSize=22,
+                leading=26,
+                textColor=colors.HexColor("#1e293b"),
+                alignment=0,
+            )
+            sub_style = ParagraphStyle(
+                "CoverSub",
+                parent=styles["Normal"],
+                fontName="Helvetica",
+                fontSize=11,
+                leading=15,
+                textColor=colors.HexColor("#64748b"),
+            )
+            h1_style = ParagraphStyle(
+                "Heading1_Custom",
+                parent=styles["Heading1"],
+                fontName="Helvetica-Bold",
+                fontSize=14,
+                leading=18,
+                textColor=colors.HexColor("#0f172a"),
+                spaceAfter=8,
+            )
+            body_style = ParagraphStyle(
+                "Body_Custom",
+                parent=styles["Normal"],
+                fontName="Helvetica",
+                fontSize=9.5,
+                leading=13.5,
+                textColor=colors.HexColor("#334155"),
+            )
+            callout_style = ParagraphStyle(
+                "Callout",
+                parent=body_style,
+                fontName="Helvetica-Oblique",
+                fontSize=9,
+                textColor=colors.HexColor("#475569"),
+            )
 
-    story: List[Any] = [
-        para("Synthetic User Generation Platform", "Title"),
-        para("Professional Research Report", "Heading2"),
-        para(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"),
-        Spacer(1, 18),
-        table(
-            [
-                ["Experiment", experiment.get("experiment_name", "N/A")],
-                ["Product", experiment.get("product_name", "N/A")],
-                ["Industry", experiment.get("industry", "N/A")],
-                ["Simulation Type", experiment.get("simulation_type", "N/A")],
-            ]
-        ),
-        PageBreak(),
-    ]
+            story = []
 
-    story.extend(heading("Executive Summary"))
-    story.append(para((insights or {}).get("product_feedback", "Insight extraction is pending.")))
-    story.append(
-        table(
-            [
-                ["Metric", "Value"],
-                ["Total Personas", len(personas)],
-                ["Survey Responses", len(survey_responses)],
-                ["Interview Messages", len(interview_rows)],
-                ["Product Fit Score", product_fit],
-                ["Recommendation Score", recommendation_score],
-                ["Persona Quality Score", average_quality],
-            ]
-        )
-    )
+            # Header
+            story.append(Paragraph("◈ AI Research Studio — Executive Intelligence Report", title_style))
+            story.append(Spacer(1, 4))
+            story.append(
+                Paragraph(
+                    f"Product: <b>{escape(str(experiment.get('product_name', 'N/A')))}</b> | "
+                    f"Experiment: <b>{escape(str(experiment.get('experiment_name', 'N/A')))}</b> | "
+                    f"Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+                    sub_style,
+                )
+            )
+            story.append(Spacer(1, 4))
+            story.append(
+                Paragraph(
+                    "<b>Notice:</b> <i>This report compiles findings from synthetic persona generation, simulated surveys, "
+                    "and memory-audited interviews. Used for rapid product discovery and strategy validation.</i>",
+                    callout_style,
+                )
+            )
+            story.append(Spacer(1, 8))
+            story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#cbd5e1"), spaceAfter=14))
 
-    story.extend(heading("Experiment Details"))
-    for key in ["description", "target_audience", "research_objective", "age", "gender", "profession", "location", "interests"]:
-        story.append(para(f"{key.replace('_', ' ').title()}: {experiment.get(key, 'N/A')}"))
+            # Executive Summary & Strategy
+            story.append(Paragraph("1. Executive Summary & Launch Strategy", h1_style))
+            exec_summary = (insights or {}).get("executive_summary") or (insights or {}).get("product_feedback") or "Pending research extraction."
+            story.append(Paragraph(escape(str(exec_summary)), body_style))
+            story.append(Spacer(1, 8))
 
-    story.extend(heading("Generated Personas"))
-    persona_rows = [["Name", "Age", "Occupation", "Education", "Technology", "Quality"]]
-    for persona in list(personas)[:18]:
-        persona_rows.append(
-            [
-                persona.get("name", "Persona"),
-                persona.get("age", "N/A"),
-                persona.get("occupation", "N/A"),
-                persona.get("education", "N/A"),
-                persona.get("technology_usage", "N/A"),
-                persona.get("quality_score", "N/A"),
-            ]
-        )
-    story.append(table(persona_rows))
+            if consultant_report:
+                top_decs = consultant_report.get("top_decisions", [])
+                if top_decs:
+                    story.append(Paragraph("<b>Top Strategic Decisions (What Should We Do Next?)</b>", body_style))
+                    for d in top_decs:
+                        dec_text = f"• <b>{escape(d.get('title', ''))}</b> (Priority: {d.get('priority', 0)}/100, Impact: {d.get('impact', 0)}, Effort: {d.get('effort', 0)})<br/>" \
+                                   f"&nbsp;&nbsp;<i>Action:</i> {escape(d.get('recommendation', ''))}"
+                        story.append(Paragraph(dec_text, body_style))
+                        story.append(Spacer(1, 4))
 
-    story.extend(heading("Survey Results"))
-    if survey_results:
-        story.append(para(f"Template: {survey_results.get('template_name', 'N/A')}"))
-        story.append(para(f"Product Fit Score: {survey_results.get('product_fit_score', 0)}"))
-        category_rows = [["Category", "Average Score"]]
-        for category, score in (survey_results.get("analytics", {}).get("average_by_category", {}) or {}).items():
-            category_rows.append([category, score])
-        if len(category_rows) > 1:
-            story.append(table(category_rows))
-    else:
-        story.append(para("No survey results captured."))
+            story.append(Spacer(1, 10))
 
-    story.extend(heading("Interview Results"))
-    story.append(para(f"Interview messages captured: {len(interview_rows)}"))
-    for row in list(interview_rows)[:10]:
-        story.append(para(f"{row.get('persona_name', row.get('role', 'Persona'))}: {row.get('message', '')}"))
+            # Persona Cohort Summary Table
+            story.append(Paragraph("2. Synthetic Persona Cohort", h1_style))
+            persona_rows = [["Name", "Age / Gender", "Occupation", "Tech Adoption", "Quality Score", "Status"]]
+            for p in personas[:8]:
+                persona_rows.append([
+                    escape(str(p.get("name", "Persona"))[:18]),
+                    f"{p.get('age', 'N/A')} / {str(p.get('gender', 'N/A'))[:6]}",
+                    escape(str(p.get("occupation", "N/A"))[:20]),
+                    escape(str(p.get("technology_usage", "Medium"))[:12]),
+                    f"{p.get('quality_score', 'N/A')}/100",
+                    str(p.get("quality_status", "Valid")),
+                ])
+            p_table = Table(persona_rows, colWidths=[100, 75, 120, 85, 75, 75])
+            p_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+            ]))
+            story.append(p_table)
+            story.append(Spacer(1, 12))
 
-    story.extend(heading("Insights"))
-    if insights:
-        story.append(para(f"Sentiment: {insights.get('sentiment', 'N/A')}"))
-        story.append(para(f"Recommendation Score: {recommendation_score}"))
-        theme_rows = [["Theme", "Count", "Confidence"]]
-        for item in insights.get("themes", [])[:10]:
-            if isinstance(item, Mapping):
-                theme_rows.append([item.get("theme", ""), item.get("count", 0), item.get("confidence_score", 0)])
-        if len(theme_rows) > 1:
-            story.append(table(theme_rows))
-    else:
-        story.append(para("No insights generated."))
+            # Survey & Insights
+            story.append(Paragraph("3. Survey & Clustered Insights", h1_style))
+            fit_score = (survey_results or {}).get("product_fit_score", (insights or {}).get("product_fit_score", 0))
+            story.append(Paragraph(f"<b>Overall Product Fit Score:</b> {fit_score}/100 | <b>Survey Responses:</b> {len((survey_results or {}).get('responses', []))}", body_style))
+            story.append(Spacer(1, 6))
 
+            recs = (insights or {}).get("final_ai_recommendations", (insights or {}).get("recommendations", []))
+            if recs:
+                story.append(Paragraph("<b>Prioritized Research Recommendations:</b>", body_style))
+                for r in recs[:5]:
+                    r_text = r.get("recommendation", r) if isinstance(r, Mapping) else str(r)
+                    story.append(Paragraph(f"• {escape(r_text)}", body_style))
+                    story.append(Spacer(1, 3))
 
-    story.extend(heading("Charts"))
-    story.append(
-        para(
-            "Interactive dashboard charts include pie charts, bar charts, line charts, radar charts, gauge charts, "
-            "word cloud visualization, trend charts, and filtered data tables."
-        )
-    )
+            doc.build(story)
+            pdf_bytes = buffer.getvalue()
+            report_cache.set(report_sig, pdf_bytes)
+            return pdf_bytes
 
-    story.extend(heading("Product Validation"))
-    story.append(para((insights or {}).get("product_feedback", "Product validation will be available after survey and insight extraction.")))
-
-    story.extend(heading("Recommendations"))
-    if recommendations:
-        for item in recommendations:
-            story.append(para(f"- {item}"))
-    else:
-        story.append(para("No AI recommendations available yet."))
-
-    story.extend(heading("Appendix"))
-    occupation_counter = Counter(str(persona.get("occupation", "N/A")) for persona in personas)
-    story.append(para("Occupation distribution: " + json.dumps(dict(occupation_counter), ensure_ascii=False)))
-    story.append(para("Full structured JSON exports are available from the Dashboard export tab."))
-
-    story.append(Spacer(1, 10))
-    story.append(para("Focus Group & Executive Recommendation", "Heading2"))
-    story.append(para(f"Focus group turns: {len(focus_group_results or [])}"))
-    if consultant_report:
-        story.append(para(f"Launch readiness: {consultant_report.get('launch_readiness', 'N/A')}%"))
-        story.append(para(f"Market fit: {consultant_report.get('market_fit', 'N/A')}/100"))
-        story.append(para(f"Recommendation rationale: {consultant_report.get('why', '')}"))
-
-
-    try:
-        doc.build(story)
-        return buffer.getvalue()
-    except Exception:
-        return _minimal_pdf(fallback_lines)
+        except Exception:
+            pdf_bytes = _minimal_pdf(fallback_lines)
+            report_cache.set(report_sig, pdf_bytes)
+            return pdf_bytes

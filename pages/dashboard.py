@@ -23,9 +23,12 @@ from frontend.shared import (
     persona_value,
     render_page_header,
     render_sidebar,
+    render_synthetic_disclaimer,
     require_personas,
 )
+from services.action_engine import ActionEngine
 from services.report_service import export_full_research_report_pdf
+from services.telemetry import telemetry
 
 
 def _score(value: Any) -> float:
@@ -52,6 +55,91 @@ def _chart_config() -> dict[str, Any]:
     return {
         "displayModeBar": False,
         "responsive": True,
+    }
+
+
+def build_dashboard_metrics(
+    personas: Sequence[Mapping[str, Any]],
+    survey_results: Mapping[str, Any] | None,
+    insights: Mapping[str, Any] | None,
+    interview_rows: Sequence[Mapping[str, Any]],
+    consultant: Mapping[str, Any] | None,
+) -> Dict[str, Any]:
+    """Precompute expensive KPI dataset."""
+    total_personas = len(personas)
+    df = persona_dataframe(personas)
+    age_vals = [v for v in df["age"].dropna().tolist()] if not df.empty else []
+    avg_age = round(sum(age_vals) / len(age_vals), 1) if age_vals else 0.0
+    fit_score = _safe_float((insights or {}).get("product_fit_score") or (survey_results or {}).get("product_fit_score", 0.0))
+    rec_score = _safe_float((insights or {}).get("recommendation_score") or (insights or {}).get("would_use_product_score", 0.0))
+    p_qual = round(float(df["quality_score"].mean()), 1) if not df.empty else 0.0
+    responses_count = len((survey_results or {}).get("responses", []))
+    interviews_count = len(interview_rows)
+    ins_conf = _safe_float((insights or {}).get("product_fit_confidence_score", 0.0))
+    readiness = (consultant or {}).get("launch_readiness", 0)
+    risk_score = (consultant or {}).get("risk_score", 0)
+
+    return {
+        "total_personas": total_personas,
+        "average_age": avg_age,
+        "product_fit": fit_score,
+        "recommendation_score": rec_score,
+        "persona_quality": p_qual,
+        "survey_responses": responses_count,
+        "interview_messages": interviews_count,
+        "insight_confidence": ins_conf,
+        "launch_readiness": readiness,
+        "risk_score": risk_score,
+    }
+
+
+def build_gender_distribution(personas: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    counts = Counter(str(p.get("gender", "Not provided")).title() for p in personas)
+    return pd.DataFrame([{"Gender": k, "Count": v} for k, v in counts.items()])
+
+
+def build_occupation_distribution(personas: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    counts = Counter(str(p.get("occupation", "Not provided")).title() for p in personas)
+    return pd.DataFrame([{"Occupation": k, "Count": v} for k, v in counts.most_common(8)])
+
+
+def build_age_distribution(personas: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    bands = Counter()
+    for p in personas:
+        a = age_number(p.get("age"))
+        if not a:
+            bands["Unknown"] += 1
+        elif a < 25:
+            bands["18-24"] += 1
+        elif a < 35:
+            bands["25-34"] += 1
+        elif a < 50:
+            bands["35-49"] += 1
+        else:
+            bands["50+"] += 1
+    return pd.DataFrame([{"Age Band": k, "Count": v} for k, v in bands.items()])
+
+
+def build_sentiment_distribution(insights: Mapping[str, Any] | None, survey_results: Mapping[str, Any] | None) -> pd.DataFrame:
+    dist = (insights or {}).get("sentiment_distribution", {})
+    if dist:
+        return pd.DataFrame([{"Sentiment": k.title(), "Count": v.get("count", 0)} for k, v in dist.items() if isinstance(v, dict)])
+    return pd.DataFrame()
+
+
+def build_theme_summary(insights: Mapping[str, Any] | None) -> pd.DataFrame:
+    themes = (insights or {}).get("themes", [])
+    if themes:
+        return pd.DataFrame(themes)
+    return pd.DataFrame()
+
+
+def build_action_metrics(consultant: Mapping[str, Any] | None) -> Dict[str, Any]:
+    return {
+        "launch_readiness": (consultant or {}).get("launch_readiness", 0),
+        "market_fit": (consultant or {}).get("market_fit", 0),
+        "risk_score": (consultant or {}).get("risk_score", 0),
+        "revenue_potential": (consultant or {}).get("revenue_potential", "Promising"),
     }
 
 
@@ -1928,11 +2016,9 @@ def main() -> None:
     )
 
     render_page_header(
-        "Dashboard",
-        (
-            "Executive analytics from personas, "
-            "surveys, interviews, and extracted insights."
-        ),
+        "Executive Research Dashboard",
+        "Executive analytics and strategic decisions from personas, surveys, interviews, and extracted insights.",
+        active_stage="Dashboard",
     )
 
     personas = require_personas()
@@ -2041,86 +2127,46 @@ def main() -> None:
         average_age,
     )
 
-    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(
-        4
-    )
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    metric_col1.metric("Total Personas", len(filtered_personas))
+    metric_col2.metric("Average Age", average_age)
+    metric_col3.metric("Product Fit", f"{product_fit:.1f} / 100" if survey_results or insights else "Pending")
+    metric_col4.metric("Recommendation", f"{recommendation_score:.1f} / 100" if insights else "Pending")
 
-    metric_col1.metric(
-        "Total Personas",
-        len(filtered_personas),
-    )
+    metric_col5, metric_col6, metric_col7, metric_col8 = st.columns(4)
+    metric_col5.metric("Persona Quality", f"{persona_quality:.1f} / 100")
+    metric_col6.metric("Survey Responses", len((survey_results or {}).get("responses", [])))
+    metric_col7.metric("Interview Messages", len(interview_rows))
+    insight_confidence = _safe_float((insights or {}).get("product_fit_confidence_score", 0))
+    metric_col8.metric("Insight Confidence", f"{insight_confidence:.0f}%" if insights else "Pending")
 
-    metric_col2.metric(
-        "Average Age",
-        average_age,
-    )
-
-    metric_col3.metric(
-        "Product Fit",
-        (
-            f"{product_fit:.1f} / 100"
-            if survey_results or insights
-            else "Pending"
-        ),
-    )
-
-    metric_col4.metric(
-        "Recommendation",
-        (
-            f"{recommendation_score:.1f} / 100"
-            if insights
-            else "Pending"
-        ),
-    )
-
-    metric_col5, metric_col6, metric_col7, metric_col8 = st.columns(
-        4
-    )
-
-    metric_col5.metric(
-        "Persona Quality",
-        f"{persona_quality:.1f} / 100",
-    )
-
-    metric_col6.metric(
-        "Survey Responses",
-        len(
-            (
-                survey_results or {}
-            ).get(
-                "responses",
-                [],
-            )
-        ),
-    )
-
-    metric_col7.metric(
-        "Interview Messages",
-        len(interview_rows),
-    )
-
-    insight_confidence = _safe_float(
-        (
-            insights or {}
-        ).get(
-            "product_fit_confidence_score",
-            0,
+    # -------------------------------------------------------------
+    # WHAT SHOULD WE DO NEXT? Executive Decision Summary
+    # -------------------------------------------------------------
+    top_decisions = consultant.get("top_decisions")
+    if not top_decisions and (insights or survey_results):
+        top_decisions = ActionEngine.get_top_decisions(
+            ActionEngine.generate_decisions(
+                experiment=experiment,
+                personas=filtered_personas,
+                insights=insights,
+                survey_results=survey_results,
+            ),
+            limit=3,
         )
-    )
 
-    metric_col8.metric(
-        "Insight Confidence",
-        (
-            f"{insight_confidence:.0f}"
-            if insights
-            else "Pending"
-        ),
-    )
+    if top_decisions:
+        st.subheader("🎯 WHAT SHOULD WE DO NEXT? (Top 3 Executive Decisions)")
+        d_cols = st.columns(len(top_decisions[:3]))
+        for d_col, dec in zip(d_cols, top_decisions[:3]):
+            with d_col:
+                with st.container(border=True):
+                    st.markdown(f"**{dec.get('title', 'Action')}**")
+                    st.markdown(f"**Priority:** `{dec.get('priority', 80)}/100` (Impact: {dec.get('impact', 80)}, Effort: {dec.get('effort', 40)})")
+                    st.caption(f"**Action:** {dec.get('recommendation', '')}")
+                    st.caption(f"**Problem:** {dec.get('problem', '')[:120]}...")
 
-    with st.expander(
-        "Experiment Overview",
-        expanded=False,
-    ):
+    with st.expander("Experiment Overview", expanded=False):
         st.json(
             experiment
             or {
@@ -2130,18 +2176,29 @@ def main() -> None:
             }
         )
 
+    # -------------------------------------------------------------
+    # Developer / Performance Telemetry Panel (Phase 18)
+    # -------------------------------------------------------------
+    with st.expander("⏱ Developer & Performance Telemetry", expanded=False):
+        t_summary = telemetry.get_summary()
+        lat_cols = st.columns(4)
+        latest_lats = t_summary.get("latest_latencies_seconds", {})
+        lat_cols[0].metric("Persona Generation", f"{latest_lats.get('persona_generation', 0.0):.2f}s")
+        lat_cols[1].metric("Survey Simulation", f"{latest_lats.get('survey_execution', 0.0):.2f}s")
+        lat_cols[2].metric("Insight Extraction", f"{latest_lats.get('insight_clustering', 0.0):.2f}s")
+        lat_cols[3].metric("Report PDF Compile", f"{latest_lats.get('report_generation', 0.0):.2f}s")
+
+        c_stats = t_summary.get("cache_stats", {})
+        hits = c_stats.get("hits", 0)
+        misses = c_stats.get("misses", 0)
+        total_cache = hits + misses
+        hit_pct = round((hits / total_cache * 100), 1) if total_cache > 0 else 0.0
+        st.write(f"**Deterministic Cache:** {hits} HITs, {misses} MISSes ({hit_pct}% hit ratio) | **API Calls:** {sum(t_summary.get('api_calls', {}).values())} | **Retries:** {sum(t_summary.get('retries', {}).values())}")
+
     if consultant:
         readiness_col1, readiness_col2 = st.columns(2)
-
-        readiness_col1.metric(
-            "Launch Readiness",
-            f"{consultant.get('launch_readiness', 0)}%",
-        )
-
-        readiness_col2.metric(
-            "Risk Score",
-            f"{consultant.get('risk_score', 0)}/100",
-        )
+        readiness_col1.metric("Launch Readiness", f"{consultant.get('launch_readiness', 0)}%")
+        readiness_col2.metric("Risk Score", f"{consultant.get('risk_score', 0)}/100")
 
     (
         persona_tab,
@@ -2196,6 +2253,9 @@ def main() -> None:
             insights,
             analytics,
         )
+
+    st.divider()
+    render_synthetic_disclaimer()
 
 
 if __name__ == "__main__":

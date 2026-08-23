@@ -14,9 +14,11 @@ from backend.services.survey_service import (
 from frontend.shared import (
     get_experiment,
     get_survey_results,
+    increment_state_version,
     init_session_state,
     render_page_header,
     render_sidebar,
+    render_synthetic_disclaimer,
     require_personas,
 )
 
@@ -63,6 +65,7 @@ def main() -> None:
     render_page_header(
         "Survey",
         "Generate simulated survey responses from the personas already stored in session state.",
+        active_stage="Survey",
     )
 
     # --------------------------------------------------
@@ -266,14 +269,11 @@ def main() -> None:
                 )
 
             # Store results in shared session state.
-            st.session_state[
-                "survey_results"
-            ] = survey_results
-
-            # New survey should invalidate old insights.
-            st.session_state[
-                "insights"
-            ] = None
+            st.session_state["survey_results"] = survey_results
+            st.session_state["insights"] = None
+            st.session_state["consultant_report"] = None
+            st.session_state["product_actions"] = []
+            increment_state_version()
 
             progress.progress(
                 100,
@@ -583,10 +583,8 @@ def main() -> None:
             "but no response rows are available."
         )
 
-    # --------------------------------------------------
-    # Navigation
-    # --------------------------------------------------
-
+    st.divider()
+    render_synthetic_disclaimer()
     st.divider()
 
     st.subheader(

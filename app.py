@@ -6,17 +6,15 @@ from typing import Any, Dict
 import streamlit as st
 from frontend.shared import (
     get_experiment,
-
     get_experiment_history,
-
     get_insights,
     get_interview_results,
-
     get_personas,
     get_survey_results,
     init_session_state,
     render_page_header,
     render_sidebar,
+    render_synthetic_disclaimer,
     save_experiment_snapshot,
     save_personas,
 )
@@ -103,6 +101,7 @@ def render_workspace() -> None:
     render_page_header(
         "AI Research Studio",
         "A complete AI research workflow—from a product brief to an executive launch decision.",
+        active_stage="Workspace",
     )
 
     hero_left, hero_right = st.columns([3, 1])
@@ -110,7 +109,22 @@ def render_workspace() -> None:
         st.caption("Research Copilot → Personas → Survey → Interviews → Focus Group → Insights → Executive Decision")
     with hero_right:
         if st.button("Load demo brief", use_container_width=True):
-            st.session_state["experiment"] = {"experiment_name":"Orbit launch validation", "product_name":"Orbit", "description":"An AI workspace that turns scattered product feedback into clear product decisions.", "target_audience":"Startup product managers and UX researchers in India", "research_objective":"Validate adoption barriers, trust, and willingness to pay.", "research_goal":"Validate adoption barriers, trust, and willingness to pay.", "industry":"Technology", "simulation_type":"Customer Persona", "persona_count":4, "age":"24-45", "gender":"Mixed", "profession":"Product Manager", "location":"India", "interests":"AI, product discovery, productivity"}
+            st.session_state["experiment"] = {
+                "experiment_name": "Orbit launch validation",
+                "product_name": "Orbit",
+                "description": "An AI workspace that turns scattered product feedback into clear product decisions.",
+                "target_audience": "Startup product managers and UX researchers in India",
+                "research_objective": "Validate adoption barriers, trust, and willingness to pay.",
+                "research_goal": "Validate adoption barriers, trust, and willingness to pay.",
+                "industry": "Technology",
+                "simulation_type": "Customer Persona",
+                "persona_count": 4,
+                "age": "24-45",
+                "gender": "Mixed",
+                "profession": "Product Manager",
+                "location": "India",
+                "interests": "AI, product discovery, productivity",
+            }
             st.session_state["toast_message"] = "Demo brief loaded. Generate personas when ready."
             st.rerun()
 
@@ -222,7 +236,7 @@ def render_workspace() -> None:
                 "Persona Count",
                 min_value=1,
                 max_value=10,
-                value=max(1, min(int(experiment.get("persona_count", 3) or 3), 10)),
+                value=max(1, min(int(experiment.get("persona_count", 4) or 4), 10)),
                 step=1,
             )
             age = st.text_input("Age", value=experiment.get("age", "25-35"))
@@ -275,7 +289,7 @@ def render_workspace() -> None:
             with st.spinner("Generating personas with Gemini and Faker enrichment..."):
                 progress.progress(20, text="Validating experiment context")
                 generator = PersonaGenerator()
-                progress.progress(45, text="Generating persona profiles")
+                progress.progress(45, text="Generating persona cohort")
                 generated_personas = generator.generate_personas(
                     age=experiment_payload["age"],
                     gender=experiment_payload["gender"],
@@ -290,7 +304,7 @@ def render_workspace() -> None:
                     industry=experiment_payload["industry"],
                     simulation_type=experiment_payload["simulation_type"],
                 )
-                progress.progress(90, text="Scoring and saving personas")
+                progress.progress(90, text="Auditing quality scores and population diversity")
         except Exception as exc:
             st.error(f"Persona generation failed. Detail: {exc}")
             return
@@ -302,7 +316,12 @@ def render_workspace() -> None:
         save_personas(generated_personas)
         save_experiment_snapshot(experiment_payload, generated_personas)
         progress.progress(100, text="Personas ready")
-        st.success(f"Successfully generated {len(generated_personas)} personas.")
+
+        if generator.from_cache:
+            st.info("⚡ **Loaded from cache** — Identical experiment signature detected; Gemini API call avoided.")
+        else:
+            st.success(f"Successfully generated {len(generated_personas)} synthetic personas ({generator.generation_source}).")
+
         if generator.last_error:
             st.warning(generator.last_error)
 
@@ -343,6 +362,8 @@ def render_workspace() -> None:
             mime="application/json",
         )
 
+    st.divider()
+    render_synthetic_disclaimer()
     st.divider()
     render_experiment_history()
 

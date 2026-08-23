@@ -1,21 +1,20 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
-from typing import Any, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
+from pydantic import BaseModel, Field as PyField
 
 
 def _coerce_text(value: Any, default: str = "Not provided") -> str:
     """Convert arbitrary values into a readable string with a safe fallback."""
     if value is None:
         return default
-
     if isinstance(value, str):
         text = value.strip()
         return text or default
-
     if isinstance(value, (int, float)):
         return str(value)
-
     text = str(value).strip()
     return text or default
 
@@ -24,7 +23,6 @@ def _coerce_list(value: Any) -> List[str]:
     """Normalize list-like values into a clean list of strings."""
     if value is None:
         return []
-
     if isinstance(value, list):
         items = value
     elif isinstance(value, tuple):
@@ -41,7 +39,6 @@ def _coerce_list(value: Any) -> List[str]:
         text = str(item).strip() if not isinstance(item, str) else item.strip()
         if text:
             cleaned_items.append(text)
-
     return cleaned_items
 
 
@@ -49,10 +46,8 @@ def _coerce_score(value: Any, default: float = 0.0) -> float:
     """Safely convert Big Five score input to a float."""
     if value in (None, ""):
         return default
-
     if isinstance(value, (int, float)):
         return float(value)
-
     text = str(value).strip().replace("%", "")
     try:
         return float(text)
@@ -61,13 +56,10 @@ def _coerce_score(value: Any, default: float = 0.0) -> float:
 
 
 def _coerce_timestamp(value: Any, default: str = "") -> str:
-    """Normalize created/updated timestamps into a string."""
     if value is None:
         return default
-
     if isinstance(value, (int, float)):
         return str(value)
-
     return str(value).strip() or default
 
 
@@ -85,7 +77,6 @@ class BigFivePersonality:
     def from_value(cls, value: Any) -> "BigFivePersonality":
         if isinstance(value, cls):
             return value
-
         if isinstance(value, Mapping):
             return cls(
                 openness=_coerce_score(value.get("openness")),
@@ -94,7 +85,6 @@ class BigFivePersonality:
                 agreeableness=_coerce_score(value.get("agreeableness")),
                 neuroticism=_coerce_score(value.get("neuroticism")),
             )
-
         if isinstance(value, (list, tuple)) and len(value) >= 5:
             return cls(
                 openness=_coerce_score(value[0]),
@@ -103,10 +93,9 @@ class BigFivePersonality:
                 agreeableness=_coerce_score(value[3]),
                 neuroticism=_coerce_score(value[4]),
             )
-
         return cls()
 
-    def to_dict(self) -> Mapping[str, float]:
+    def to_dict(self) -> Dict[str, float]:
         return {
             "openness": self.openness,
             "conscientiousness": self.conscientiousness,
@@ -118,7 +107,7 @@ class BigFivePersonality:
 
 @dataclass
 class Persona:
-    """Flexible persona data model that supports legacy and milestone-2 schema."""
+    """Flexible persona data model supporting backward compatibility and quality scores."""
 
     name: str = "Unknown"
     age: str = "N/A"
@@ -135,17 +124,31 @@ class Persona:
     id: str = ""
     avatar_url: str = ""
     company: str = "Not provided"
+    bio: str = "Not provided"
     goals: List[str] = field(default_factory=list)
     pain_points: List[str] = field(default_factory=list)
     traits: List[str] = field(default_factory=list)
     behaviour: List[str] = field(default_factory=list)
     technology_usage: str = "Not provided"
     buying_behaviour: str = "Not provided"
+    buying_behavior: str = "Not provided"
     psychological_profile: Any = "Not provided"
     behavior_pattern: Any = "Not provided"
+    lifestyle: str = "Not provided"
+    motivation: str = "Not provided"
+    frustrations: List[str] = field(default_factory=list)
+    daily_routine: str = "Not provided"
+    decision_making: str = "Not provided"
     created_at: str = ""
     updated_at: str = ""
     big_five: BigFivePersonality = field(default_factory=BigFivePersonality)
+    quality_score: int = 80
+    diversity_score: int = 80
+    validation_score: int = 80
+    completeness_score: int = 80
+    consistency_score: int = 80
+    quality_status: str = "Valid"
+    quality_warnings: List[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Optional[Mapping[str, Any]]) -> "Persona":
@@ -169,6 +172,11 @@ class Persona:
                 "agreeableness": payload.get("agreeableness"),
                 "neuroticism": payload.get("neuroticism"),
             }
+
+        buying_b = _coerce_text(
+            payload.get("buying_behavior") or payload.get("buying_behaviour"),
+            "Not provided",
+        )
 
         return cls(
             id=_coerce_text(
@@ -198,6 +206,7 @@ class Persona:
             state=_coerce_text(payload.get("state"), "Not provided"),
             pincode=_coerce_text(payload.get("pincode") or payload.get("postcode"), "Not provided"),
             company=_coerce_text(payload.get("company"), "Not provided"),
+            bio=_coerce_text(payload.get("bio"), "Not provided"),
             goals=_coerce_list(payload.get("goals")),
             pain_points=_coerce_list(payload.get("pain_points")),
             traits=_coerce_list(payload.get("traits")),
@@ -206,24 +215,28 @@ class Persona:
                 payload.get("technology_usage") or payload.get("technology") or payload.get("tech_usage"),
                 "Not provided",
             ),
-            buying_behaviour=_coerce_text(
-                payload.get("buying_behaviour") or payload.get("buying_behavior"),
-                "Not provided",
-            ),
-            psychological_profile=payload.get("psychological_profile") or payload.get("psychology") or payload.get("psychological"),
-            behavior_pattern=payload.get("behavior_pattern") or payload.get("behaviour_pattern") or payload.get("behavior"),
-            created_at=_coerce_timestamp(
-                payload.get("created_at") or payload.get("createdAt") or payload.get("created"),
-                "",
-            ),
-            updated_at=_coerce_timestamp(
-                payload.get("updated_at") or payload.get("updatedAt") or payload.get("updated"),
-                "",
-            ),
+            buying_behaviour=buying_b,
+            buying_behavior=buying_b,
+            psychological_profile=payload.get("psychological_profile") or payload.get("psychology") or payload.get("psychological") or {},
+            behavior_pattern=payload.get("behavior_pattern") or payload.get("behaviour_pattern") or payload.get("behavior") or {},
+            lifestyle=_coerce_text(payload.get("lifestyle"), "Not provided"),
+            motivation=_coerce_text(payload.get("motivation"), "Not provided"),
+            frustrations=_coerce_list(payload.get("frustrations")),
+            daily_routine=_coerce_text(payload.get("daily_routine"), "Not provided"),
+            decision_making=_coerce_text(payload.get("decision_making"), "Not provided"),
+            created_at=_coerce_timestamp(payload.get("created_at") or payload.get("createdAt"), ""),
+            updated_at=_coerce_timestamp(payload.get("updated_at") or payload.get("updatedAt"), ""),
             big_five=BigFivePersonality.from_value(big_five_payload),
+            quality_score=int(_coerce_score(payload.get("quality_score"), 80.0)),
+            diversity_score=int(_coerce_score(payload.get("diversity_score"), 80.0)),
+            validation_score=int(_coerce_score(payload.get("validation_score"), 80.0)),
+            completeness_score=int(_coerce_score(payload.get("completeness_score"), 80.0)),
+            consistency_score=int(_coerce_score(payload.get("consistency_score"), 80.0)),
+            quality_status=_coerce_text(payload.get("quality_status"), "Valid"),
+            quality_warnings=_coerce_list(payload.get("quality_warnings")),
         )
 
-    def to_dict(self) -> Mapping[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "avatar_url": self.avatar_url,
@@ -240,15 +253,30 @@ class Persona:
             "state": self.state,
             "pincode": self.pincode,
             "company": self.company,
+            "bio": self.bio,
             "goals": list(self.goals),
             "pain_points": list(self.pain_points),
             "traits": list(self.traits),
             "behaviour": list(self.behaviour),
             "technology_usage": self.technology_usage,
+            "buying_behavior": self.buying_behavior,
             "buying_behaviour": self.buying_behaviour,
             "psychological_profile": self.psychological_profile,
             "behavior_pattern": self.behavior_pattern,
+            "lifestyle": self.lifestyle,
+            "motivation": self.motivation,
+            "frustrations": list(self.frustrations),
+            "daily_routine": self.daily_routine,
+            "decision_making": self.decision_making,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "big_five_personality": self.big_five.to_dict(),
             "big_five": self.big_five.to_dict(),
+            "quality_score": self.quality_score,
+            "diversity_score": self.diversity_score,
+            "validation_score": self.validation_score,
+            "completeness_score": self.completeness_score,
+            "consistency_score": self.consistency_score,
+            "quality_status": self.quality_status,
+            "quality_warnings": self.quality_warnings,
         }

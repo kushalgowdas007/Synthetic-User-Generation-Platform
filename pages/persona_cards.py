@@ -16,6 +16,7 @@ from frontend.shared import (
     records_to_dataframe,
     render_page_header,
     render_sidebar,
+    render_synthetic_disclaimer,
     require_personas,
 )
 
@@ -28,7 +29,7 @@ def avatar_url(persona: Mapping[str, object]) -> str:
 
 
 def filtered_personas(personas: list[dict]) -> list[dict]:
-    search_col, gender_col, occupation_col, sort_col = st.columns([1.6, 1, 1, 1])
+    search_col, gender_col, occupation_col, quality_col, sort_col = st.columns([1.5, 1, 1, 1, 1])
     with search_col:
         search = st.text_input("Search", placeholder="Name, occupation, goal, or pain point")
     with gender_col:
@@ -37,8 +38,10 @@ def filtered_personas(personas: list[dict]) -> list[dict]:
     with occupation_col:
         occupation_options = ["All"] + sorted({as_text(persona.get("occupation")) for persona in personas if persona.get("occupation")})
         occupation = st.selectbox("Occupation", occupation_options)
+    with quality_col:
+        quality_filter = st.selectbox("Quality Status", ["All", "Valid (>=70)", "Needs Review (<70)"])
     with sort_col:
-        sort_by = st.selectbox("Sort", ["Name", "Age", "Gender", "Occupation", "Income"])
+        sort_by = st.selectbox("Sort", ["Quality Score", "Name", "Age", "Gender", "Occupation", "Income"])
 
     search_text = search.strip().lower()
     results: list[dict] = []
@@ -60,8 +63,15 @@ def filtered_personas(personas: list[dict]) -> list[dict]:
             continue
         if occupation != "All" and as_text(persona.get("occupation")).lower() != occupation.lower():
             continue
+        q_score = int(persona.get("quality_score", 80) or 80)
+        if quality_filter == "Valid (>=70)" and q_score < 70:
+            continue
+        if quality_filter == "Needs Review (<70)" and q_score >= 70:
+            continue
         results.append(persona)
 
+    if sort_by == "Quality Score":
+        return sorted(results, key=lambda item: int(item.get("quality_score", 0) or 0), reverse=True)
     if sort_by == "Age":
         return sorted(results, key=lambda item: (age_number(item.get("age")) is None, age_number(item.get("age")) or 0, as_text(item.get("name")).lower()))
     return sorted(results, key=lambda item: as_text(item.get(sort_by.lower())).lower())
@@ -101,29 +111,40 @@ def render_big_five(value: object) -> None:
 
 
 def render_persona_card(persona: dict) -> None:
+    q_score = int(persona.get("quality_score", 80) or 80)
+    status_label = "Valid" if q_score >= 70 else "Needs Review"
+    badge_color = "#10b981" if q_score >= 70 else "#f59e0b"
+
     with st.container(border=True):
         avatar_col, summary_col = st.columns([1, 4])
         with avatar_col:
             st.image(avatar_url(persona), width=112)
+            st.markdown(
+                f'<span style="background:{badge_color};color:white;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:bold;">'
+                f'{status_label}</span>',
+                unsafe_allow_html=True,
+            )
         with summary_col:
             st.subheader(as_text(persona.get("name"), "Unknown"))
             st.caption(f"{as_text(persona.get('occupation'))} | {as_text(persona.get('gender'))} | Age {as_text(persona.get('age'))}")
             metric_col1, metric_col2, metric_col3 = st.columns(3)
             metric_col1.metric("Income", as_text(persona.get("income")))
             metric_col2.metric("Education", as_text(persona.get("education")))
-            metric_col3.metric("Quality", as_text(persona.get("quality_score"), "N/A"))
+            metric_col3.metric("Quality Score", f"{q_score}/100")
 
-            score_col1, score_col2, score_col3, score_col4 = st.columns(4)
-            score_col1.metric("Diversity", as_text(persona.get("diversity_score"), "N/A"))
-            score_col2.metric("Validation", as_text(persona.get("validation_score"), "N/A"))
-            score_col3.metric("Completeness", as_text(persona.get("completeness_score"), "N/A"))
-            score_col4.metric("Consistency", as_text(persona.get("consistency_score"), "N/A"))
+        st.caption(
+            f"Completeness: {persona.get('completeness_score', 'N/A')} | "
+            f"Coherence: {persona.get('coherence_score', 'N/A')} | "
+            f"Diversity: {persona.get('diversity_score', 'N/A')} | "
+            f"Consistency: {persona.get('behavioral_consistency_score', persona.get('consistency_score', 'N/A'))} | "
+            f"Usefulness: {persona.get('research_usefulness_score', 'N/A')}"
+        )
 
-        score_col1, score_col2, score_col3 = st.columns(3)
-        score_col1.caption(f"Confidence {as_text(persona.get('persona_confidence_score'), 'N/A')}%")
-        score_col2.caption(f"Realism {as_text(persona.get('realism_score'), 'N/A')}%")
-        score_col3.caption(f"Consistency {as_text(persona.get('consistency_score'), 'N/A')}%")
-
+        warnings = persona.get("quality_warnings", [])
+        if warnings:
+            with st.expander("⚠ Quality Diagnostics & Warnings", expanded=False):
+                for w in warnings:
+                    st.warning(f"• {w}")
 
         st.write(as_text(persona.get("bio"), "No biography provided."))
         st.caption(f"Location: {as_text(persona.get('city') or persona.get('location'))} | Lifestyle: {as_text(persona.get('lifestyle'))}")
@@ -148,60 +169,116 @@ def render_persona_card(persona: dict) -> None:
             st.caption(as_text(persona.get("email")))
             st.caption(as_text(persona.get("phone")))
 
-        st.write("**Decision Making**")
-        st.write(as_text(persona.get("decision_making")))
         render_big_five(persona_value(persona, "big_five_personality", {}))
+
+
+def render_comparison_matrix(personas: list[dict]) -> None:
+    """Renders a responsive side-by-side comparison matrix for 2-4 selected personas."""
+    st.subheader("⚖ Persona Comparison Matrix")
+    persona_options = {p.get("id", str(idx)): f"{p.get('name', 'Persona')} ({p.get('occupation', 'Role')})" for idx, p in enumerate(personas)}
+    default_selected = list(persona_options.keys())[:min(3, len(personas))]
+
+    selected_ids = st.multiselect(
+        "Select 2 to 4 personas to compare side-by-side:",
+        options=list(persona_options.keys()),
+        default=default_selected,
+        format_func=persona_options.get,
+        max_selections=4,
+    )
+
+    if len(selected_ids) < 2:
+        st.info("Select at least 2 personas above to view the side-by-side comparison matrix.")
+        return
+
+    selected_personas = [p for p in personas if p.get("id", "") in selected_ids or str(personas.index(p)) in selected_ids]
+    cols = st.columns(len(selected_personas))
+
+    comparison_fields = [
+        ("Occupation", "occupation"),
+        ("Age / Gender", lambda p: f"{p.get('age', 'N/A')} / {p.get('gender', 'N/A')}"),
+        ("Income", "income"),
+        ("Technology Usage", "technology_usage"),
+        ("Buying Behavior", lambda p: persona_value(p, "buying_behavior", "N/A")),
+        ("Top Goal", lambda p: (as_list(p.get("goals")) or ["N/A"])[0]),
+        ("Top Pain Point", lambda p: (as_list(p.get("pain_points")) or ["N/A"])[0]),
+        ("Quality Score", lambda p: f"{p.get('quality_score', 'N/A')}/100"),
+        ("Decision Style", lambda p: (persona_value(p, "psychological_profile", {}) or {}).get("decision_style", "Research-led")),
+    ]
+
+    for col, persona in zip(cols, selected_personas):
+        with col:
+            with st.container(border=True):
+                st.markdown(f"### {persona.get('name', 'Persona')}")
+                st.caption(f"{persona.get('city', 'India')} | {persona.get('lifestyle', 'Balanced')}")
+                st.divider()
+                for label, field_getter in comparison_fields:
+                    val = field_getter(persona) if callable(field_getter) else persona.get(field_getter, "N/A")
+                    st.markdown(f"**{label}**")
+                    st.write(str(val))
+                    st.markdown("<hr style='margin:4px 0;opacity:0.2'/>", unsafe_allow_html=True)
 
 
 def main() -> None:
     st.set_page_config(page_title="Persona Cards", layout="wide")
     init_session_state()
     render_sidebar("Persona Cards")
-    render_page_header("Persona Cards", "Review, filter, sort, and export generated personas.")
+    render_page_header(
+        "Persona Cards & Quality Inspection",
+        "Review, filter, inspect quality scores, compare cohorts, and export generated personas.",
+        active_stage="Persona Cards",
+    )
 
     personas = require_personas()
     if personas is None:
         return
 
-    view_col, score_col = st.columns([1, 2])
-    with view_col:
-        view_mode = st.radio("View", ["Gallery", "List"], horizontal=True)
-    with score_col:
-        st.caption("Quality score combines data completeness, consistency, and behavioral realism.")
-    visible_personas = filtered_personas(get_personas())
-    st.caption(f"Showing {len(visible_personas)} of {len(personas)} personas")
+    tabs = st.tabs(["📇 Persona Gallery / List", "⚖ Side-by-Side Comparison Matrix"])
 
-    export_df = records_to_dataframe(visible_personas)
-    export_col1, export_col2 = st.columns(2)
-    with export_col1:
-        st.download_button(
-            "Download filtered JSON",
-            data=json.dumps(visible_personas, indent=2).encode("utf-8"),
-            file_name="personas.json",
-            mime="application/json",
-            use_container_width=True,
-        )
-    with export_col2:
-        st.download_button(
-            "Download filtered CSV",
-            data=export_df.to_csv(index=False).encode("utf-8"),
-            file_name="personas.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+    with tabs[0]:
+        view_col, score_col = st.columns([1, 2])
+        with view_col:
+            view_mode = st.radio("View Mode", ["Gallery", "List"], horizontal=True)
+        with score_col:
+            st.caption("◈ Persona Quality Score (0–100) measures data completeness, demographic coherence, and behavioral realism.")
 
-    if not visible_personas:
-        st.info("No personas match the current filters.")
-        return
+        visible_personas = filtered_personas(get_personas())
+        st.caption(f"Showing {len(visible_personas)} of {len(personas)} personas")
 
-    if view_mode == "List":
-        st.dataframe(records_to_dataframe(visible_personas), use_container_width=True, hide_index=True)
-    else:
-        for start in range(0, len(visible_personas), 2):
-            columns = st.columns(2)
-            for column, persona in zip(columns, visible_personas[start:start + 2]):
-                with column:
-                    render_persona_card(persona)
+        export_df = records_to_dataframe(visible_personas)
+        export_col1, export_col2 = st.columns(2)
+        with export_col1:
+            st.download_button(
+                "Download filtered JSON",
+                data=json.dumps(visible_personas, indent=2).encode("utf-8"),
+                file_name="personas.json",
+                mime="application/json",
+                use_container_width=True,
+            )
+        with export_col2:
+            st.download_button(
+                "Download filtered CSV",
+                data=export_df.to_csv(index=False).encode("utf-8"),
+                file_name="personas.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+        if not visible_personas:
+            st.info("No personas match the current filters.")
+        elif view_mode == "List":
+            st.dataframe(records_to_dataframe(visible_personas), use_container_width=True, hide_index=True)
+        else:
+            for start in range(0, len(visible_personas), 2):
+                columns = st.columns(2)
+                for column, persona in zip(columns, visible_personas[start : start + 2]):
+                    with column:
+                        render_persona_card(persona)
+
+    with tabs[1]:
+        render_comparison_matrix(get_personas())
+
+    st.divider()
+    render_synthetic_disclaimer()
 
 
 if __name__ == "__main__":

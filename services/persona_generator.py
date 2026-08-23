@@ -13,7 +13,14 @@ from dotenv import load_dotenv
 from faker import Faker
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+from services.cache_service import compute_experiment_signature, persona_cache
 from services.faker_service import generate_fake_details
+from services.persona_quality import (
+    QUALITY_THRESHOLD,
+    evaluate_persona_quality,
+    evaluate_population_diversity,
+)
+from services.telemetry import telemetry, time_stage
 
 try:
     from google import genai
@@ -22,10 +29,8 @@ except Exception:  # pragma: no cover - optional dependency guard
     genai = None
     types = None
 
-
 load_dotenv()
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ai_research_studio.persona_generator")
 fake = Faker("en_IN")
 
 REQUIRED_FIELDS = [
@@ -117,13 +122,16 @@ class PersonaListModel(BaseModel):
 
 
 class PersonaGenerator:
-    """Canonical Gemini + Faker persona generator with validation and fallback safety."""
+    """Canonical Gemini + Faker persona generator with deterministic caching and quality scoring."""
 
     def __init__(self, model_name: str = "gemini-2.5-flash", max_retries: int = 3) -> None:
         self.model_name = os.getenv("GEMINI_MODEL", model_name)
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         self.max_retries = max(1, int(max_retries))
         self.last_error: Optional[str] = None
+        self.from_cache: bool = False
+        self.generation_source: str = "local_faker_fallback"
+        self.population_diversity: Optional[Dict[str, Any]] = None
         self._gemini_available = bool(self.api_key and genai is not None and types is not None)
         self.client = genai.Client(api_key=self.api_key) if self._gemini_available else None
 
@@ -141,8 +149,10 @@ class PersonaGenerator:
         research_objective: str = "",
         industry: str = "",
         simulation_type: str = "",
+        bypass_cache: bool = False,
     ) -> List[Dict[str, Any]]:
         self.last_error = None
+        self.from_cache = False
         count = max(1, min(int(persona_count or 1), 10))
 
         context = {
@@ -160,24 +170,49 @@ class PersonaGenerator:
             "simulation_type": simulation_type,
         }
 
-        generated: List[Dict[str, Any]] = []
-        if self._gemini_available:
-            try:
-                generated = self._generate_with_gemini(**context)
-            except Exception as exc:
-                self.last_error = f"Gemini generation failed after retries. Local personas were generated instead. Detail: {exc}"
-                logger.exception("Gemini persona generation failed")
-        else:
-            if not self.api_key:
-                self.last_error = "GEMINI_API_KEY was not found. Local Faker-backed personas were generated."
+        # 1. Deterministic Cache Check
+        cache_key = compute_experiment_signature(context)
+        if not bypass_cache:
+            cached_personas = persona_cache.get(cache_key)
+            if cached_personas and len(cached_personas) == count:
+                self.from_cache = True
+                self.generation_source = "cache"
+                logger.info("Retrieved %d personas from deterministic cache for signature: %s", len(cached_personas), cache_key[:12])
+                return cached_personas
+
+        # 2. Batch Generation via Gemini or Local Fallback
+        with time_stage("persona_generation"):
+            generated: List[Dict[str, Any]] = []
+            if self._gemini_available:
+                try:
+                    telemetry.record_api_call("gemini")
+                    generated = self._generate_with_gemini(**context)
+                    self.generation_source = "gemini"
+                except Exception as exc:
+                    self.last_error = f"Gemini generation failed after retries. Local Faker personas were generated instead. Detail: {exc}"
+                    self.generation_source = "local_faker_fallback"
+                    telemetry.record_error("persona_generation_gemini", str(exc))
+                    logger.exception("Gemini persona generation failed")
             else:
-                self.last_error = "google-genai is unavailable. Local Faker-backed personas were generated."
+                self.generation_source = "local_faker_fallback"
+                if not self.api_key:
+                    self.last_error = "GEMINI_API_KEY was not found. Local Faker-backed personas were generated."
+                else:
+                    self.last_error = "google-genai is unavailable. Local Faker-backed personas were generated."
 
-        normalized = [self._normalize_persona(persona, index) for index, persona in enumerate(generated[:count])]
-        while len(normalized) < count:
-            normalized.append(self._build_fallback_persona(index=len(normalized), **context))
+            normalized = [self._normalize_persona(persona, index, self.generation_source) for index, persona in enumerate(generated[:count])]
+            while len(normalized) < count:
+                normalized.append(self._build_fallback_persona(index=len(normalized), **context))
 
-        return self._deduplicate_and_score(normalized, context)[:count]
+            final_cohort = self._deduplicate_and_score(normalized, context)[:count]
+
+            # Compute and store cohort diversity
+            div_report = evaluate_population_diversity(final_cohort)
+            self.population_diversity = div_report.to_dict()
+
+            # Cache the generated cohort
+            persona_cache.set(cache_key, final_cohort)
+            return final_cohort
 
     def _generate_with_gemini(self, **context: Any) -> List[Dict[str, Any]]:
         prompt = self._build_prompt(**context)
@@ -195,6 +230,7 @@ class PersonaGenerator:
                                 "Return strict JSON only. Do not include markdown."
                             ),
                             response_mime_type="application/json",
+                            temperature=0.7,
                         ),
                     )
                     payload = self._loads_json(response.text)
@@ -203,9 +239,12 @@ class PersonaGenerator:
                     return [persona.model_dump() for persona in parsed.personas]
                 except Exception as exc:
                     last_error = exc
+                    telemetry.record_retry("persona_generation", attempt + 1)
                     if attempt < self.max_retries - 1:
-                        time.sleep(0.5 * (2**attempt))
-            logger.warning("Model %s failed persona generation: %s", model_name, last_error)
+                        backoff = 0.5 * (2**attempt)
+                        logger.warning("Attempt %d failed on model %s: %s. Backing off %.1fs", attempt + 1, model_name, exc, backoff)
+                        time.sleep(backoff)
+            logger.warning("Model %s exhausted retries: %s", model_name, last_error)
 
         raise last_error or RuntimeError("Gemini generation failed")
 
@@ -393,9 +432,9 @@ Persona seed:
             "decision_making": "Compares value, effort, trust signals, and peer proof before committing",
             **fake_details,
         }
-        return self._normalize_persona(persona, index)
+        return self._normalize_persona(persona, index, "local_faker_fallback")
 
-    def _normalize_persona(self, persona: Mapping[str, Any], index: int) -> Dict[str, Any]:
+    def _normalize_persona(self, persona: Mapping[str, Any], index: int, source: str = "local_faker_fallback") -> Dict[str, Any]:
         fake_details = generate_fake_details()
         repaired = self._repair_persona_payload({"personas": [persona]})["personas"][0]
         model = GeneratedPersonaModel.model_validate(repaired)
@@ -411,12 +450,23 @@ Persona seed:
             "company": self._coerce_text(persona.get("company"), fake_details["company"]),
             "state": self._coerce_text(persona.get("state"), fake_details["state"]),
             "pincode": self._coerce_text(persona.get("pincode") or persona.get("postcode"), fake_details["pincode"]),
+            "source": source,
         }
 
-        normalized.update(self._quality_scores(normalized))
-
-        normalized["quality_score"] = self._quality_score(normalized)
-        normalized.update(self._quality_dimensions(normalized))
+        # Quality scoring
+        q_score = evaluate_persona_quality(normalized)
+        normalized["quality_score"] = q_score.overall_score
+        normalized["completeness_score"] = q_score.completeness
+        normalized["coherence_score"] = q_score.coherence
+        normalized["realism_score"] = q_score.realism
+        normalized["behavioral_consistency_score"] = q_score.behavioral_consistency
+        normalized["research_usefulness_score"] = q_score.research_usefulness
+        normalized["diversity_score"] = q_score.diversity
+        normalized["validation_score"] = q_score.coherence  # backward compatibility alias
+        normalized["consistency_score"] = q_score.behavioral_consistency  # backward compatibility alias
+        normalized["persona_confidence_score"] = q_score.research_usefulness
+        normalized["quality_status"] = q_score.status
+        normalized["quality_warnings"] = q_score.warnings
 
         return normalized
 
@@ -434,141 +484,17 @@ Persona seed:
                 bio_key = str(persona["bio"]).lower()
             seen_names.add(name_key)
             seen_bios.add(bio_key)
-
-
-            persona["quality_score"] = self._quality_score(persona)
-            persona.update(self._quality_dimensions(persona))
-
             unique.append(persona)
 
+        # Re-evaluate cohort-level diversity and quality
         for persona in unique:
-            persona.update(self._quality_scores(persona, unique))
+            q_score = evaluate_persona_quality(persona, peers=unique)
+            persona["quality_score"] = q_score.overall_score
+            persona["diversity_score"] = q_score.diversity
+            persona["quality_status"] = q_score.status
+            persona["quality_warnings"] = q_score.warnings
 
         return unique
-
-    def _quality_score(self, persona: Mapping[str, Any]) -> int:
-        return int(self._quality_scores(persona).get("quality_score", 0))
-
-    def _quality_scores(self, persona: Mapping[str, Any], peers: Optional[Sequence[Mapping[str, Any]]] = None) -> Dict[str, int]:
-        completeness = self._completeness_score(persona)
-        validation = self._validation_score(persona)
-        consistency = self._consistency_score(persona)
-        diversity = self._diversity_score(persona, peers or [])
-        quality = round((completeness * 0.30) + (validation * 0.20) + (consistency * 0.30) + (diversity * 0.20))
-        return {
-            "quality_score": max(0, min(100, quality)),
-            "diversity_score": diversity,
-            "validation_score": validation,
-            "completeness_score": completeness,
-            "consistency_score": consistency,
-        }
-
-    def _completeness_score(self, persona: Mapping[str, Any]) -> int:
-        completeness = sum(1 for field in REQUIRED_FIELDS if persona.get(field) not in (None, "", [], {})) / len(REQUIRED_FIELDS)
-        optional_fields = ["lifestyle", "motivation", "frustrations", "daily_routine", "decision_making"]
-        optional_completeness = sum(1 for field in optional_fields if persona.get(field) not in (None, "", [], {})) / len(optional_fields)
-        return max(0, min(100, round((completeness * 80) + (optional_completeness * 20))))
-
-    def _validation_score(self, persona: Mapping[str, Any]) -> int:
-        score = 100
-        age = self._coerce_age(persona.get("age"))
-        if not 18 <= age <= 80:
-            score -= 25
-        if "@" not in str(persona.get("email", "")):
-            score -= 10
-        if len(self._coerce_list(persona.get("goals"))) < 2:
-            score -= 12
-        if len(self._coerce_list(persona.get("pain_points"))) < 2:
-            score -= 12
-        big_five = persona.get("big_five_personality", {})
-        if not isinstance(big_five, Mapping):
-            score -= 18
-        else:
-            for value in big_five.values():
-                try:
-                    numeric = float(str(value).replace("%", ""))
-                except ValueError:
-                    score -= 6
-                    continue
-                if numeric < 0 or numeric > 100:
-                    score -= 6
-        return max(0, min(100, round(score)))
-
-    def _consistency_score(self, persona: Mapping[str, Any]) -> int:
-        score = 100
-        age = self._coerce_age(persona.get("age"))
-        occupation = str(persona.get("occupation", "")).lower()
-        if age < 22 and any(role in occupation for role in ("senior", "director", "manager")):
-            score -= 22
-        if not self._coerce_list(persona.get("goals")) or not self._coerce_list(persona.get("pain_points")):
-            score -= 18
-        bio = str(persona.get("bio", ""))
-        if len(bio) < 80:
-            score -= 14
-        tech = str(persona.get("technology_usage", "")).lower()
-        buying = str(persona.get("buying_behavior") or persona.get("buying_behaviour") or "").lower()
-        if "low" in tech and any(term in buying for term in ("advanced", "automation-first", "early adopter")):
-            score -= 14
-        income = str(persona.get("income", "")).lower()
-        if "student" in occupation and any(term in income for term in ("25 lpa", "110", "high income")):
-            score -= 12
-        return max(0, min(100, round(score)))
-
-
-    def _diversity_score(self, persona: Mapping[str, Any], peers: Sequence[Mapping[str, Any]]) -> int:
-        if not peers:
-            return 82
-
-        comparisons = [peer for peer in peers if peer is not persona]
-        if not comparisons:
-            return 82
-
-        attributes = {
-            "gender": str(persona.get("gender", "")).strip().lower(),
-            "occupation": str(persona.get("occupation", "")).strip().lower(),
-            "education": str(persona.get("education", "")).strip().lower(),
-            "technology_usage": str(persona.get("technology_usage", "")).strip().lower(),
-            "age_band": self._age_band(persona.get("age")),
-            "income": str(persona.get("income", "")).strip().lower(),
-        }
-        distinct = 0
-        available = 0
-        for key, value in attributes.items():
-            if not value:
-                continue
-            available += 1
-            peer_values = {
-                self._age_band(peer.get("age")) if key == "age_band" else str(peer.get(key, "")).strip().lower()
-                for peer in comparisons
-            }
-            if value not in peer_values:
-                distinct += 1
-        if available == 0:
-            return 60
-        return max(45, min(100, round(55 + (distinct / available) * 45)))
-
-    @classmethod
-    def _age_band(cls, value: Any) -> str:
-        age = cls._coerce_age(value)
-        if age < 25:
-            return "18-24"
-        if age < 35:
-            return "25-34"
-        if age < 45:
-            return "35-44"
-        if age < 55:
-            return "45-54"
-        return "55+"
-    def _quality_dimensions(self, persona: Mapping[str, Any]) -> Dict[str, int]:
-        """Expose interpretable quality signals alongside the composite score."""
-        completeness = sum(1 for field in REQUIRED_FIELDS if persona.get(field) not in (None, "", [], {})) / len(REQUIRED_FIELDS)
-        age = self._coerce_age(persona.get("age"))
-        occupation = str(persona.get("occupation", "")).lower()
-        consistency = 92 if not (age < 22 and any(role in occupation for role in ("senior", "director", "manager"))) else 68
-        realism = min(96, 60 + min(24, len(str(persona.get("bio", ""))) // 8) + (8 if len(self._coerce_list(persona.get("pain_points"))) >= 2 else 0))
-        confidence = round((completeness * 55) + (consistency * .25) + (realism * .20))
-        return {"persona_confidence_score": max(0, min(100, confidence)), "realism_score": realism, "consistency_score": consistency}
-
 
     def _model_candidates(self) -> List[str]:
         candidates = [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"]

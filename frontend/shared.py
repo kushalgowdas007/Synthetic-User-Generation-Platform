@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
 from collections.abc import Iterable, Mapping
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import pandas as pd
 import streamlit as st
-
 
 PAGE_LINKS = [
     ("app.py", "Home / Workspace"),
@@ -23,9 +22,20 @@ PAGE_LINKS = [
     ("pages/dashboard.py", "Dashboard"),
 ]
 
+RESEARCH_STAGES = [
+    ("Workspace", "Brief & Setup"),
+    ("Persona Cards", "Personas"),
+    ("Survey", "Survey"),
+    ("Interview", "Interviews"),
+    ("Focus Group", "Focus Group"),
+    ("Insights", "Insights"),
+    ("Product Consultant", "Action Plan"),
+    ("Dashboard", "Executive Decision"),
+]
+
 
 def init_session_state() -> None:
-    """Initialize the single session-state contract used by every Streamlit page."""
+    """Initialize the canonical single session-state contract used by every Streamlit page."""
     st.session_state.setdefault("personas", [])
     st.session_state.setdefault("experiment", {})
     st.session_state.setdefault("experiment_history", [])
@@ -36,12 +46,24 @@ def init_session_state() -> None:
     st.session_state.setdefault("research_plan", None)
     st.session_state.setdefault("focus_group_results", [])
     st.session_state.setdefault("consultant_report", None)
+    st.session_state.setdefault("product_actions", [])
+    st.session_state.setdefault("state_version", 1)
     st.session_state.setdefault("toast_message", "")
+
+
+def increment_state_version() -> int:
+    st.session_state["state_version"] = st.session_state.get("state_version", 0) + 1
+    return st.session_state["state_version"]
+
+
+def get_state_version() -> int:
+    return int(st.session_state.get("state_version", 1))
 
 
 def apply_premium_theme() -> None:
     """Small shared design system; kept CSS-only so every existing page benefits."""
-    st.markdown("""<style>
+    st.markdown(
+        """<style>
     :root { --ink:#e8edf8; --muted:#9aa8c1; --panel:rgba(17,25,45,.78); --accent:#7c8cff; }
     .stApp { background: radial-gradient(circle at 82% 0%, #202b58 0%, #0c1120 40%, #090d18 100%); color:var(--ink); }
     [data-testid="stSidebar"] { background: linear-gradient(180deg,#111a31,#0a0f1d); border-right:1px solid #273250; }
@@ -53,7 +75,53 @@ def apply_premium_theme() -> None:
     .stButton > button:hover, .stDownloadButton > button:hover { filter:brightness(1.12); transform:translateY(-1px); }
     .research-hero { padding:1.35rem 1.5rem; border:1px solid #344779; border-radius:18px; background:linear-gradient(115deg,rgba(73,89,178,.40),rgba(21,29,54,.72)); margin-bottom:1rem; }
     .research-hero h1 { margin:0; font-size:2rem; } .research-hero p { color:var(--muted); margin:.35rem 0 0; }
-    </style>""", unsafe_allow_html=True)
+    .timeline-container { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:1.2rem; }
+    .timeline-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid #334155; background:rgba(30,41,59,0.7); color:#94a3b8; }
+    .timeline-pill.completed { border-color:#10b981; background:rgba(16,185,129,0.12); color:#34d399; }
+    .timeline-pill.active { border-color:#6366f1; background:rgba(99,102,241,0.22); color:#818cf8; box-shadow:0 0 12px rgba(99,102,241,0.3); }
+    .synthetic-badge { display:inline-block; font-size:11px; padding:3px 8px; border-radius:6px; background:#1e293b; color:#94a3b8; border:1px solid #475569; }
+    </style>""",
+        unsafe_allow_html=True,
+    )
+
+
+def render_research_timeline(active_stage: str) -> None:
+    """Renders an interactive visual progress tracker across the research lifecycle."""
+    personas = get_personas()
+    survey = get_survey_results()
+    interviews = get_interview_results()
+    focus = st.session_state.get("focus_group_results", [])
+    insights = get_insights()
+    consultant = st.session_state.get("consultant_report")
+
+    stage_status: Dict[str, str] = {
+        "Workspace": "completed" if personas else ("active" if active_stage == "Workspace" else "pending"),
+        "Persona Cards": "completed" if personas else "pending",
+        "Survey": "completed" if survey else ("active" if active_stage == "Survey" else "pending"),
+        "Interview": "completed" if interviews else ("active" if active_stage == "Interview" else "pending"),
+        "Focus Group": "completed" if focus else ("active" if active_stage == "Focus Group" else "pending"),
+        "Insights": "completed" if insights else ("active" if active_stage == "Insights" else "pending"),
+        "Product Consultant": "completed" if consultant else ("active" if active_stage == "Product Consultant" else "pending"),
+        "Dashboard": "completed" if (personas and survey and insights) else ("active" if active_stage == "Dashboard" else "pending"),
+    }
+
+    cols = st.columns(len(RESEARCH_STAGES))
+    for col, (stage_id, label) in zip(cols, RESEARCH_STAGES):
+        status = stage_status.get(stage_id, "pending")
+        if stage_id == active_stage:
+            status = "active"
+        
+        icon = "✓" if status == "completed" and stage_id != active_stage else ("●" if status == "active" else "○")
+        with col:
+            st.markdown(
+                f'<div class="timeline-pill {status}"><span>{icon}</span> <span>{label}</span></div>',
+                unsafe_allow_html=True,
+            )
+
+
+def render_synthetic_disclaimer() -> None:
+    """Renders a mandatory audit and transparency disclaimer for synthetic research outputs."""
+    st.caption("◈ **Synthetic Data & AI Simulation Notice**: All participant responses, quotes, and scores are generated through synthetic persona modeling for product discovery. Validate critical findings with real users prior to commercial launch.")
 
 
 def get_personas() -> List[Dict[str, Any]]:
@@ -100,6 +168,8 @@ def save_personas(personas: List[Dict[str, Any]]) -> None:
     st.session_state["insights"] = None
     st.session_state["focus_group_results"] = []
     st.session_state["consultant_report"] = None
+    st.session_state["product_actions"] = []
+    increment_state_version()
 
 
 def save_experiment_snapshot(experiment: Mapping[str, Any], personas: List[Dict[str, Any]] | None = None) -> Dict[str, Any]:
@@ -116,6 +186,7 @@ def save_experiment_snapshot(experiment: Mapping[str, Any], personas: List[Dict[
     history.insert(0, payload)
     st.session_state["experiment_history"] = history[:12]
     st.session_state["experiment"] = payload
+    increment_state_version()
     return payload
 
 
@@ -170,19 +241,6 @@ def apply_professional_theme() -> None:
             background: var(--primary);
             border-color: var(--primary-dark);
         }
-        .workflow-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 9px;
-            border-radius: 999px;
-            border: 1px solid var(--line);
-            background: var(--panel);
-            color: var(--muted);
-            font-size: 12px;
-            margin-right: 6px;
-            margin-bottom: 6px;
-        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -220,14 +278,12 @@ def render_sidebar(active_label: str) -> None:
             st.warning("Start in Workspace")
 
 
-def render_page_header(title: str, caption: str) -> None:
-
+def render_page_header(title: str, caption: str, active_stage: Optional[str] = None) -> None:
     apply_professional_theme()
-    st.title(title)
-    st.caption(caption)
-
     apply_premium_theme()
     st.markdown(f'<div class="research-hero"><h1>{title}</h1><p>{caption}</p></div>', unsafe_allow_html=True)
+    if active_stage:
+        render_research_timeline(active_stage)
     message = st.session_state.pop("toast_message", "")
     if message:
         st.toast(message, icon="✨")

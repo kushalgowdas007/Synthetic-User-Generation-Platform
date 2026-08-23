@@ -1,21 +1,24 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from collections import Counter
-
+import logging
 import os
-
-from typing import Any, Dict, List, Mapping
+import time
+from collections import Counter
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Mapping, Optional
 
 from backend.app.memory.memory_store import MemoryStore
+from services.persona_consistency import check_interview_consistency
+from services.telemetry import telemetry
 
-try:  # Gemini is optional; deterministic responses keep demos functional offline.
+try:
     from google import genai
     from google.genai import types
-except Exception:  # pragma: no cover - dependency/environment guard
+except Exception:  # pragma: no cover - optional dependency guard
     genai = None
     types = None
+
+logger = logging.getLogger("ai_research_studio.interview_service")
 
 
 def _as_list(value: Any) -> List[str]:
@@ -45,6 +48,7 @@ def create_memory_payload(persona: Mapping[str, Any]) -> Dict[str, Any]:
         "emotional_state": "neutral",
         "follow_up_questions": initial_follow_ups,
         "consistency_score": 100,
+        "contradictions": [],
         "demographics": {
             "name": str(persona.get("name", "Persona")),
             "age": str(persona.get("age", "Unknown")),
@@ -78,7 +82,7 @@ def _response_tone(persona: Mapping[str, Any]) -> str:
 
 def _topic_for_message(message: str) -> str:
     lower_message = message.lower()
-    if any(word in lower_message for word in ["price", "cost", "pay", "buy", "subscription"]):
+    if any(word in lower_message for word in ["price", "cost", "pay", "buy", "subscription", "pricing"]):
         return "pricing"
     if any(word in lower_message for word in ["problem", "pain", "frustrat", "challenge", "barrier"]):
         return "pain_points"
@@ -108,12 +112,12 @@ def _summarize_history(history: List[Mapping[str, Any]], persona_name: str) -> s
     persona_messages = [
         str(item.get("message", ""))
         for item in history
-        if item.get("role") == "persona" and str(item.get("message", "")).strip()
+        if item.get("role") in ("persona", "assistant") and str(item.get("message", "")).strip()
     ]
     if not persona_messages:
         return "No interview responses have been captured yet."
 
-    topic_counter = Counter(str(item.get("topic", "general_feedback")) for item in history if item.get("role") == "persona")
+    topic_counter = Counter(str(item.get("topic", "general_feedback")) for item in history if item.get("role") in ("persona", "assistant"))
     top_topic = topic_counter.most_common(1)[0][0].replace("_", " ") if topic_counter else "general feedback"
     latest = persona_messages[-1]
     return f"{persona_name} has focused on {top_topic}. Latest signal: {latest[:180]}"
@@ -147,30 +151,13 @@ def _build_follow_ups(topic: str, persona: Mapping[str, Any], product: str) -> L
     ]
 
 
-def _consistency_score(memory_payload: Mapping[str, Any]) -> int:
-    opinions = dict(memory_payload.get("opinions", {}))
-    history = [item for item in memory_payload.get("history", []) if isinstance(item, Mapping)]
-    if not history:
-        return 100
-
-    score = 100
-    topic_counts = Counter(str(item.get("topic", "")) for item in history if item.get("role") == "persona")
-    repeated_topics = sum(1 for _, count in topic_counts.items() if count > 1)
-    if repeated_topics and not opinions:
-        score -= 15
-    for topic in topic_counts:
-        if topic and topic not in opinions:
-            score -= 5
-    return max(65, min(100, score))
-
-
 def generate_interview_reply(
     persona: Mapping[str, Any],
     user_message: str,
     memory_payload: Mapping[str, Any],
     experiment: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    """Generate a persona-consistent Gemini response, with a reliable local fallback."""
+    """Generate a persona-consistent Gemini response with memory tracking, audit, and local fallback."""
     memory = _memory_from_payload(memory_payload)
     product = str((experiment or {}).get("product_name") or "this product")
     persona_name = str(persona.get("name", "Persona"))
@@ -186,114 +173,124 @@ def generate_interview_reply(
 
     if previous_opinion:
         answer_focus = (
-            f"My view is consistent with what I said earlier: {previous_opinion[:150]} "
-            f"The short version is that {product} still has to match my real-world constraints."
+            f"My view aligns with what I mentioned before: {previous_opinion[:140]}... "
+            f"Overall, {product} needs to fit my real workflow."
         )
     elif opinion_topic == "pricing":
-        answer_focus = f"I would need pricing to feel fair against the time saved. My buying style is: {buying}."
+        answer_focus = f"I need pricing to be clearly justified by time saved. My buying style: {buying}."
     elif opinion_topic == "pain_points":
-        answer_focus = f"My biggest friction is {pain_points[0]}. If {product} reduces that, I would take it seriously."
+        answer_focus = f"My primary blocker is {pain_points[0]}. If {product} solves that, I would evaluate it seriously."
     elif opinion_topic == "adoption":
-        answer_focus = f"I would try it if onboarding is simple and it clearly supports my goal to {goals[0].lower()}."
+        answer_focus = f"I would try it if onboarding is fast and it helps me {goals[0].lower()} without complexity."
     elif opinion_topic == "feature_requests":
-        answer_focus = f"I would look for features that reduce {pain_points[0].lower()} and help me {goals[0].lower()}."
+        answer_focus = f"I am looking for features that reduce {pain_points[0].lower()} and help me {goals[0].lower()}."
     elif opinion_topic == "recommendation":
-        answer_focus = f"I would recommend it only if the first experience proves value quickly for people like me."
+        answer_focus = f"I would recommend {product} only after seeing concrete proof of value for my daily work."
     else:
-        answer_focus = f"As a {occupation}, I would judge {product} by whether it helps me {goals[0].lower()} without adding complexity."
-
+        answer_focus = f"As a {occupation}, I assess {product} on whether it helps me {goals[0].lower()} reliably."
 
     emotional_state = _emotion_for_topic(opinion_topic, persona)
-    reply = (
-        f"Speaking as {persona_name}, I am {tone} and currently {emotional_state}. {answer_focus} "
-        f"My technology comfort is {tech}, so I prefer a workflow that feels clear, guided, and trustworthy."
-    )
-
-    memory.add_message("user", user_message, opinion_topic)
-    memory.add_message("persona", reply, opinion_topic)
-
     fallback_reply = (
         f"Speaking as {persona_name}, I am {tone}. {answer_focus} "
-        f"My technology comfort is {tech}, so I prefer a workflow that feels clear, guided, and trustworthy."
+        f"With my {tech} tech familiarity, I prefer guided, trustworthy workflows."
     )
 
-    reply = _generate_gemini_reply(
+    gemini_reply = _generate_gemini_reply(
         persona=persona,
         question=user_message,
         product=product,
         history=history,
         opinions=memory_payload.get("opinions", {}),
-    ) or fallback_reply
+    )
 
-    memory.add_message("user", user_message)
-    memory.add_message("persona", reply)
+    reply = gemini_reply or fallback_reply
+    source = "gemini" if gemini_reply else "local_fallback"
 
+    memory.add_message("user", user_message, opinion_topic)
+    memory.add_message("persona", reply, opinion_topic)
     memory.add_opinion(opinion_topic, reply)
 
+    now_iso = datetime.now(timezone.utc).isoformat()
     updated_history = history + [
-        {"role": "user", "message": user_message, "topic": opinion_topic, "timestamp": datetime.now(timezone.utc).isoformat()},
+        {"role": "user", "message": user_message, "topic": opinion_topic, "timestamp": now_iso},
         {
             "role": "persona",
             "message": reply,
             "topic": opinion_topic,
             "emotional_state": emotional_state,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_iso,
         },
     ]
+
+    updated_opinions = dict(memory_payload.get("opinions", {}))
+    updated_opinions[opinion_topic] = reply
+
+    # Audit conversation consistency
+    audit_report = check_interview_consistency(persona, updated_history, updated_opinions)
+
     updated_payload = dict(memory_payload)
     updated_payload["history"] = updated_history
-    updated_payload.setdefault("opinions", {})
-    updated_payload["opinions"][opinion_topic] = reply
+    updated_payload["opinions"] = updated_opinions
     updated_payload["emotional_state"] = emotional_state
     updated_payload["conversation_summary"] = _summarize_history(updated_history, persona_name)
     updated_payload["follow_up_questions"] = _build_follow_ups(opinion_topic, persona, product)
-    updated_payload["last_updated"] = datetime.now(timezone.utc).isoformat()
-    updated_payload["consistency_score"] = _consistency_score(updated_payload)
+    updated_payload["last_updated"] = now_iso
+    updated_payload["consistency_score"] = audit_report.get("consistency_score", 100)
+    updated_payload["contradictions"] = audit_report.get("contradictions", [])
+    updated_payload["warnings"] = audit_report.get("warnings", [])
+
+    sentiment = "positive" if any(w in reply.lower() for w in ("try", "valuable", "useful", "seriously", "love")) else "neutral"
 
     return {
         "reply": reply,
         "memory": updated_payload,
         "quote": reply,
-
-        "sentiment": "positive" if "try" in reply.lower() or "seriously" in reply.lower() else "neutral",
+        "sentiment": sentiment,
         "emotional_state": emotional_state,
         "follow_up_questions": updated_payload["follow_up_questions"],
         "conversation_summary": updated_payload["conversation_summary"],
         "consistency_score": updated_payload["consistency_score"],
-
-        "sentiment": "positive" if any(word in reply.lower() for word in ("try", "valuable", "useful", "seriously")) else "neutral",
-        "source": "gemini" if reply != fallback_reply else "local_fallback",
-
+        "contradictions": updated_payload["contradictions"],
+        "source": source,
     }
 
 
 def _generate_gemini_reply(
     *, persona: Mapping[str, Any], question: str, product: str, history: List[Any], opinions: Any,
-) -> str | None:
+) -> Optional[str]:
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key or genai is None or types is None:
         return None
+
     context = "\n".join(
         f"{item.get('role', 'unknown')}: {item.get('message', '')}" for item in history[-8:] if isinstance(item, Mapping)
     ) or "No previous conversation."
-    prompt = f"""Respond as the following synthetic research participant, in first person. Never claim to be AI.
-Keep all demographic, behavioral and opinion details consistent. Be concise (2-4 sentences), specific, and realistic.
+    prompt = f"""Respond as the following synthetic research participant in first person. Never break character or claim to be AI.
+Keep all demographic, behavioral, and opinion details strictly consistent. Be concise (2-4 sentences), specific, and realistic.
 Persona: {dict(persona)}
 Product: {product}
 Known opinions: {opinions}
-Conversation: {context}
+Conversation history:
+{context}
 Interviewer question: {question}
 """
-    try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"), contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.65, max_output_tokens=240),
-        )
-        text = str(getattr(response, "text", "")).strip()
-        return text if text else None
-    except Exception:
-        return None
+    client = genai.Client(api_key=api_key)
+    for attempt in range(3):
+        try:
+            telemetry.record_api_call("gemini")
+            response = client.models.generate_content(
+                model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+                contents=prompt,
+                config=types.GenerateContentConfig(temperature=0.65, max_output_tokens=250),
+            )
+            text = str(getattr(response, "text", "")).strip()
+            if text:
+                return text
+        except Exception as exc:
+            telemetry.record_retry("interview_gemini", attempt + 1)
+            time.sleep(0.5 * (2**attempt))
+            logger.warning("Gemini interview attempt %d failed: %s", attempt + 1, exc)
+    return None
 
 
 def flatten_interview_memories(memories: Mapping[str, Any]) -> List[Dict[str, Any]]:

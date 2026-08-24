@@ -108,6 +108,7 @@ def render_workspace() -> None:
     with hero_left:
         st.caption("Research Copilot → Personas → Survey → Interviews → Focus Group → Insights → Executive Decision")
     with hero_right:
+<<<<<<< HEAD
         if st.button("Load demo brief", use_container_width=True):
             st.session_state["experiment"] = {
                 "experiment_name": "Orbit launch validation",
@@ -126,6 +127,17 @@ def render_workspace() -> None:
                 "interests": "AI, product discovery, productivity",
             }
             st.session_state["toast_message"] = "Demo brief loaded. Generate personas when ready."
+=======
+        if st.button("🚀 Load Demo Research Session", use_container_width=True):
+            exp = {"experiment_name":"AI Personal Finance Assistant", "product_name":"Orbit Money", "description":"An automated AI personal finance assistant that budgets and optimizes investments.", "target_audience":"Young working professionals in urban tech hubs", "research_objective":"Validate trust, data privacy concerns, and willingness to pay monthly subscription.", "research_goal":"Validate trust, data privacy concerns, and willingness to pay monthly subscription.", "industry":"Finance", "simulation_type":"Customer Persona", "persona_count":4, "age":"24-38", "gender":"Mixed", "profession":"Software Engineer, Analyst, Designer", "location":"India", "interests":"Fintech, Investing, AI"}
+            demo_personas = [
+                {"id":"demo_1", "name":"Aarav Sharma", "age":28, "gender":"Male", "occupation":"Software Engineer", "education":"Bachelor's degree", "income":"INR 14-20 LPA", "bio":"Aarav is an ambitious software engineer interested in automated wealth management.", "goals":["Automate monthly savings", "Track investments"], "pain_points":["Lack of data privacy trust", "High subscription cost"], "technology_usage":"High", "buying_behavior":"Compares features before paying", "quality_score":92, "big_five_personality":{"openness":82, "conscientiousness":78, "extraversion":55, "agreeableness":65, "neuroticism":35}},
+                {"id":"demo_2", "name":"Priya Nair", "age":31, "gender":"Female", "occupation":"Product Manager", "education":"Master's degree", "income":"INR 18-25 LPA", "bio":"Priya is a busy product manager seeking low-friction financial planning.", "goals":["Save time on budgeting", "Get personalized insights"], "pain_points":["Complex onboarding", "Hidden fees"], "technology_usage":"High", "buying_behavior":"Prefers free trial before committing", "quality_score":88, "big_five_personality":{"openness":75, "conscientiousness":85, "extraversion":70, "agreeableness":80, "neuroticism":25}}
+            ]
+            st.session_state["experiment"] = exp
+            st.session_state["personas"] = demo_personas
+            st.session_state["toast_message"] = "Full AI Personal Finance demo research loaded into workspace!"
+>>>>>>> f68520b (Save local changes)
             st.rerun()
 
     personas = get_personas()
@@ -283,7 +295,13 @@ def render_workspace() -> None:
             interests=interests,
         )
         experiment_payload = save_experiment_snapshot(experiment_payload, [])
+        
+        # Phase 1: Compute Experiment Signature for Caching
+        from services.cache_service import compute_experiment_signature, record_performance_metric
+        from services.persona_quality import evaluate_persona_quality, evaluate_population_diversity
+        import time
 
+<<<<<<< HEAD
         try:
             progress = st.progress(0, text="Preparing persona generation request")
             with st.spinner("Generating personas with Gemini and Faker enrichment..."):
@@ -308,13 +326,69 @@ def render_workspace() -> None:
         except Exception as exc:
             st.error(f"Persona generation failed. Detail: {exc}")
             return
+=======
+        exp_sig = compute_experiment_signature(experiment_payload)
+        st.session_state["experiment_signature"] = exp_sig
+
+        # Check if identical experiment personas exist in state cache
+        cached_personas = st.session_state.get("cached_personas_store", {}).get(exp_sig)
+
+        start_time = time.time()
+        if cached_personas:
+            generated_personas = cached_personas
+            st.info("⚡ Loaded from cache — Gemini call avoided.")
+            record_performance_metric("persona_generation", time.time() - start_time, cache_hit=True)
+        else:
+            st.info("✨ Generating new personas...")
+            try:
+                progress = st.progress(0, text="Preparing persona generation request")
+                with st.spinner("Generating personas with Gemini batch generation and Faker enrichment..."):
+                    progress.progress(20, text="Validating experiment context")
+                    generator = PersonaGenerator()
+                    progress.progress(45, text="Generating persona profiles")
+                    generated_personas = generator.generate_personas(
+                        age=experiment_payload["age"],
+                        gender=experiment_payload["gender"],
+                        profession=experiment_payload["profession"],
+                        location=experiment_payload["location"],
+                        interests=experiment_payload["interests"],
+                        persona_count=experiment_payload["persona_count"],
+                        product_name=experiment_payload["product_name"],
+                        description=experiment_payload["description"],
+                        target_audience=experiment_payload["target_audience"],
+                        research_objective=experiment_payload["research_objective"],
+                        industry=experiment_payload["industry"],
+                        simulation_type=experiment_payload["simulation_type"],
+                    )
+                    progress.progress(90, text="Scoring quality and population diversity")
+                    
+                    # Store in cache
+                    st.session_state.setdefault("cached_personas_store", {})[exp_sig] = generated_personas
+                    record_performance_metric("persona_generation", time.time() - start_time, cache_hit=False)
+            except Exception as exc:
+                st.error(f"Persona generation failed. Detail: {exc}")
+                return
+>>>>>>> f68520b (Save local changes)
 
         if not generated_personas:
             st.error("No personas were generated. Please review the inputs and try again.")
             return
 
+        # Evaluate quality scores & population diversity
+        for p in generated_personas:
+            q_eval = evaluate_persona_quality(p, generated_personas)
+            p["quality_score"] = q_eval.overall_score
+            p["needs_review"] = q_eval.needs_review
+            p["quality_warnings"] = q_eval.warnings
+
+        div_report = evaluate_population_diversity(generated_personas)
+        if div_report.is_low_diversity:
+            for w in div_report.diversity_warnings:
+                st.warning(w)
+
         save_personas(generated_personas)
         save_experiment_snapshot(experiment_payload, generated_personas)
+<<<<<<< HEAD
         progress.progress(100, text="Personas ready")
 
         if generator.from_cache:
@@ -323,6 +397,12 @@ def render_workspace() -> None:
             st.success(f"Successfully generated {len(generated_personas)} synthetic personas ({generator.generation_source}).")
 
         if generator.last_error:
+=======
+        if 'progress' in locals():
+            progress.progress(100, text="Personas ready")
+        st.success(f"Successfully generated {len(generated_personas)} personas. Population Diversity Score: {div_report.diversity_score}/100")
+        if 'generator' in locals() and generator.last_error:
+>>>>>>> f68520b (Save local changes)
             st.warning(generator.last_error)
 
         st.page_link("pages/persona_cards.py", label="Open Persona Cards")

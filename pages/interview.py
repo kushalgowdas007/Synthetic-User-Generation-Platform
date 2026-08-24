@@ -59,6 +59,7 @@ def main() -> None:
         st.write(f"**Core Goal:** {(persona.get('goals', ['N/A']) or ['N/A'])[0]}")
     with col2:
         st.subheader("Memory & Consistency Audit")
+<<<<<<< HEAD
         metric_col1, metric_col2 = st.columns(2)
         metric_col1.metric("Current Emotion", str(memory_payload.get("emotional_state", "neutral")).title())
         metric_col2.metric("Consistency Score", f"{consistency_score}/100")
@@ -73,6 +74,36 @@ def main() -> None:
                     st.warning(f"**[{ref}]**: {desc}")
 
         with st.expander("Tracked Persona Opinions", expanded=False):
+=======
+        memory_payload = memories[persona_id]
+        
+        # Phase 7: Interview Consistency Audit
+        from services.persona_consistency import check_interview_consistency
+        history_items = memory_payload.get("history", [])
+        audit_report = check_interview_consistency(history_items, persona)
+
+        metric_col1, metric_col2 = st.columns(2)
+        metric_col1.metric("Emotion", str(memory_payload.get("emotional_state", "neutral")).title())
+        metric_col2.metric("Consistency Audit", f"{audit_report.consistency_score}/100")
+        
+        if audit_report.warnings:
+            for warn in audit_report.warnings:
+                st.warning(warn)
+
+        st.write("**Conversation Summary**")
+        st.write(memory_payload.get("conversation_summary", "No interview responses have been captured yet."))
+        
+        with st.expander("🔍 Consistency Audit & Contradictions", expanded=False):
+            if audit_report.contradictions:
+                for c in audit_report.contradictions:
+                    st.error(f"[{c.severity} Severity] {c.topic}: {c.contradiction}")
+                    st.caption(f"User: {c.turn_user}")
+                    st.caption(f"Persona: {c.turn_assistant}")
+            else:
+                st.success("No self-contradictions detected in conversation memory.")
+                
+        with st.expander("Tracked Opinions", expanded=False):
+>>>>>>> f68520b (Save local changes)
             st.json(memory_payload.get("opinions", {}))
 
     st.divider()
@@ -105,10 +136,16 @@ def main() -> None:
 
     user_input = st.chat_input("Ask this persona about needs, pricing, adoption, frustrations, or product fit")
 
+<<<<<<< HEAD
     # Resolve active question
     active_question = user_input or follow_up_question or chosen_starter
     if active_question:
         with st.spinner(f"Interviewing {persona.get('name', 'persona')}..."):
+=======
+    active_question = question or follow_up_question or st.session_state.pop("interview_draft", None)
+    if active_question:
+        with st.spinner("Interviewing persona..."):
+>>>>>>> f68520b (Save local changes)
             result = generate_interview_reply(
                 persona=persona,
                 user_message=active_question,

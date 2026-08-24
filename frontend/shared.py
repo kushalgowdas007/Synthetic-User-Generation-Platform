@@ -18,8 +18,11 @@ PAGE_LINKS = [
     ("pages/interview.py", "Interview"),
     ("pages/focus_group.py", "Focus Group"),
     ("pages/insights.py", "Insights"),
-    ("pages/consultant.py", "Product Consultant"),
+    ("pages/action_center.py", "Action Center"),
+    ("pages/product_strategy.py", "Product Strategy"),
+    ("pages/experiment_simulator.py", "Experiment Simulator"),
     ("pages/dashboard.py", "Dashboard"),
+    ("pages/reports.py", "Reports"),
 ]
 
 RESEARCH_STAGES = [
@@ -43,12 +46,16 @@ def init_session_state() -> None:
     st.session_state.setdefault("persona_memories", {})
     st.session_state.setdefault("interview_results", [])
     st.session_state.setdefault("insights", None)
+    st.session_state.setdefault("product_actions", None)
     st.session_state.setdefault("research_plan", None)
     st.session_state.setdefault("focus_group_results", [])
     st.session_state.setdefault("consultant_report", None)
     st.session_state.setdefault("product_actions", [])
     st.session_state.setdefault("state_version", 1)
     st.session_state.setdefault("toast_message", "")
+    st.session_state.setdefault("state_version", 1.0)
+    st.session_state.setdefault("experiment_signature", "")
+
 
 
 def increment_state_version() -> int:
@@ -278,15 +285,61 @@ def render_sidebar(active_label: str) -> None:
             st.warning("Start in Workspace")
 
 
+<<<<<<< HEAD
 def render_page_header(title: str, caption: str, active_stage: Optional[str] = None) -> None:
     apply_professional_theme()
     apply_premium_theme()
     st.markdown(f'<div class="research-hero"><h1>{title}</h1><p>{caption}</p></div>', unsafe_allow_html=True)
     if active_stage:
         render_research_timeline(active_stage)
+=======
+def render_research_timeline(current_step: str = "") -> None:
+    """Render Phase 13 Research Session Timeline with status indicators."""
+    steps = [
+        ("Brief", bool(get_experiment())),
+        ("Personas", bool(get_personas())),
+        ("Survey", bool(get_survey_results())),
+        ("Interview", bool(get_interview_results())),
+        ("Focus Group", bool(st.session_state.get("focus_group_results"))),
+        ("Insights", bool(get_insights())),
+        ("Actions", bool(st.session_state.get("product_actions"))),
+        ("Decision", bool(st.session_state.get("consultant_report"))),
+    ]
+
+    pills_html = []
+    for label, is_complete in steps:
+        if label.lower() == current_step.lower():
+            status_icon = "●"
+            color = "#7c8cff"
+            bg = "#1e295d"
+        elif is_complete:
+            status_icon = "✓"
+            color = "#10b981"
+            bg = "#064e3b"
+        else:
+            status_icon = "○"
+            color = "#9aa8c1"
+            bg = "#11192d"
+
+        pills_html.append(
+            f'<span style="background:{bg}; color:{color}; border:1px solid {color}44; '
+            f'padding:3px 8px; border-radius:12px; font-size:0.75rem; margin-right:4px;">'
+            f'{status_icon} {label}</span>'
+        )
+
+    st.markdown('<div style="margin-bottom:12px;">' + "".join(pills_html) + '</div>', unsafe_allow_html=True)
+
+
+def render_page_header(title: str, caption: str) -> None:
+    apply_professional_theme()
+    apply_premium_theme()
+    st.markdown(f'<div class="research-hero"><h1>{title}</h1><p>{caption}</p></div>', unsafe_allow_html=True)
+    render_research_timeline(title.split()[0])
+>>>>>>> f68520b (Save local changes)
     message = st.session_state.pop("toast_message", "")
     if message:
         st.toast(message, icon="✨")
+
 
 
 def as_text(value: Any, default: str = "Not provided") -> str:

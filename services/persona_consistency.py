@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+<<<<<<< HEAD
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
@@ -199,3 +200,121 @@ def check_interview_consistency(
         opinions=opinions or {},
     )
     return report.to_dict()
+=======
+from typing import Any, Dict, List, Mapping, Sequence
+from models.schemas import ContradictionItem, InterviewConsistencyReport
+
+
+def check_interview_consistency(history: Sequence[Mapping[str, Any]], persona_profile: Mapping[str, Any]) -> InterviewConsistencyReport:
+    """
+    Audit synthetic interview memory and conversation history for persona-profile consistency
+    and self-contradictions across conversation turns.
+    """
+    if not history:
+        return InterviewConsistencyReport(consistency_score=100, contradictions=[], warnings=[], supporting_turns=[])
+
+    contradictions: List[ContradictionItem] = []
+    warnings: List[str] = []
+    supporting_turns: List[Dict[str, str]] = []
+    
+    score = 100
+
+    # Extract user-assistant turn pairs
+    turns: List[Tuple[str, str]] = []
+    current_user = ""
+    for item in history:
+        role = item.get("role")
+        msg = str(item.get("message", "")).strip()
+        if role == "user":
+            current_user = msg
+        elif role == "assistant" and current_user:
+            turns.append((current_user, msg))
+            current_user = ""
+
+    # Rule-based contradiction checks across turns
+    # 1. Price sensitivity vs willingness to pay huge sum
+    price_sensitive = False
+    for user_msg, assistant_msg in turns:
+        text = assistant_msg.lower()
+        if any(phrase in text for phrase in ["tight budget", "price sensitive", "too expensive", "hard to justify cost", "cannot afford"]):
+            price_sensitive = True
+
+    for user_msg, assistant_msg in turns:
+        text = assistant_msg.lower()
+        if price_sensitive and any(phrase in text for phrase in ["immediately pay 10,000", "price is not an issue", "cost does not matter", "happily pay premium"]):
+            score -= 20
+            item = ContradictionItem(
+                turn_user=user_msg,
+                turn_assistant=assistant_msg,
+                topic="Pricing & Budget",
+                contradiction="Stated price sensitivity in earlier turns but expressed unconstrained payment willingness in later turn.",
+                severity="High"
+            )
+            contradictions.append(item)
+            warnings.append("⚠ Potential inconsistency: Price sensitivity vs. unconstrained payment willingness.")
+
+    # 2. Data privacy / health sharing contradictions
+    privacy_strict = False
+    for user_msg, assistant_msg in turns:
+        text = assistant_msg.lower()
+        if any(phrase in text for phrase in ["don't share health data", "never share personal data", "privacy is non-negotiable", "strict data privacy"]):
+            privacy_strict = True
+
+    for user_msg, assistant_msg in turns:
+        text = assistant_msg.lower()
+        if privacy_strict and any(phrase in text for phrase in ["comfortable sharing all health data", "don't mind sharing my data", "openly share data"]):
+            score -= 20
+            item = ContradictionItem(
+                turn_user=user_msg,
+                turn_assistant=assistant_msg,
+                topic="Privacy & Trust",
+                contradiction="Stated strict privacy boundaries in earlier turn but agreed to share sensitive personal data later.",
+                severity="High"
+            )
+            contradictions.append(item)
+            warnings.append("⚠ Potential inconsistency: Data privacy boundary shift.")
+
+    # 3. Technology stance contradiction
+    tech_reluctant = False
+    for user_msg, assistant_msg in turns:
+        text = assistant_msg.lower()
+        if any(phrase in text for phrase in ["prefer manual process", "don't trust ai", "not comfortable with tech", "prefer paper"]):
+            tech_reluctant = True
+
+    for user_msg, assistant_msg in turns:
+        text = assistant_msg.lower()
+        if tech_reluctant and any(phrase in text for phrase in ["love automated ai", "ai is my main workflow", "fully automated solution"]):
+            score -= 15
+            item = ContradictionItem(
+                turn_user=user_msg,
+                turn_assistant=assistant_msg,
+                topic="Technology Adoption",
+                contradiction="Expressed AI reluctance earlier but embraced full automation in subsequent response.",
+                severity="Medium"
+            )
+            contradictions.append(item)
+            warnings.append("⚠ Potential inconsistency: AI reluctance vs. automation enthusiasm.")
+
+    # Profile vs Interview checks
+    persona_tech = str(persona_profile.get("technology_usage", "")).lower()
+    for user_msg, assistant_msg in turns:
+        text = assistant_msg.lower()
+        if "low" in persona_tech and any(phrase in text for phrase in ["built custom webhooks", "advanced API integration", "write script"]):
+            score -= 10
+            warnings.append("⚠ Turn claims advanced developer action despite Low tech usage profile.")
+
+    # Format supporting turns for audit preview
+    for idx, (u, a) in enumerate(turns, 1):
+        supporting_turns.append({
+            "turn": f"Turn {idx}",
+            "question": u[:60] + ("..." if len(u) > 60 else ""),
+            "answer": a[:100] + ("..." if len(a) > 100 else "")
+        })
+
+    return InterviewConsistencyReport(
+        consistency_score=max(0, min(100, score)),
+        contradictions=contradictions,
+        warnings=warnings,
+        supporting_turns=supporting_turns,
+    )
+>>>>>>> f68520b (Save local changes)

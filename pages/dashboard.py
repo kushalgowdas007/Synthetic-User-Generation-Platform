@@ -2200,6 +2200,30 @@ def main() -> None:
         readiness_col1.metric("Launch Readiness", f"{consultant.get('launch_readiness', 0)}%")
         readiness_col2.metric("Risk Score", f"{consultant.get('risk_score', 0)}/100")
 
+    # Phase 12: Decision Summary ("WHAT SHOULD WE DO NEXT?")
+    actions = st.session_state.get("product_actions") or []
+    if actions:
+        st.subheader("⚡ Top 3 Product Decisions (\"WHAT SHOULD WE DO NEXT?\")")
+        d_cols = st.columns(min(3, len(actions)))
+        for idx, (col, act) in enumerate(zip(d_cols, actions[:3]), 1):
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"**#{idx} {act.get('title')}**")
+                    st.caption(f"Priority: {act.get('priority')}/100 | Impact: {act.get('impact')}/100")
+                    st.write(f"**WHAT:** {act.get('recommendation')}")
+                    st.write(f"**WHY:** {act.get('problem')}")
+                    st.write(f"**EVIDENCE:** {', '.join(act.get('source_insights', []))}")
+                    st.caption(f"Effort: {act.get('effort')}/100 | Confidence: {act.get('confidence')}%")
+
+    # Phase 18: Developer Performance & Caching Metrics
+    with st.expander("🛠 Developer / Performance Metrics & Caching Telemetry", expanded=False):
+        from services.cache_service import get_performance_metrics
+        perf_logs = get_performance_metrics()
+        if perf_logs:
+            st.dataframe(pd.DataFrame(perf_logs), use_container_width=True, hide_index=True)
+        else:
+            st.info("No performance log entries recorded yet in this session.")
+
     (
         persona_tab,
         survey_tab,

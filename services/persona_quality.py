@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+<<<<<<< HEAD
 import math
 import re
 from collections import Counter
@@ -224,10 +225,136 @@ def evaluate_persona_quality(
         research_usefulness=usefulness_score,
         diversity=diversity_score,
         status=status,
+=======
+import re
+from collections import Counter
+from typing import Any, Dict, List, Mapping, Optional, Sequence
+from models.schemas import PersonaQualityScore, PopulationDiversityReport
+
+
+QUALITY_THRESHOLD = 70
+
+
+def evaluate_persona_quality(persona: Mapping[str, Any], peers: Optional[Sequence[Mapping[str, Any]]] = None) -> PersonaQualityScore:
+    """
+    Evaluate an individual persona across 6 dimensions and return a PersonaQualityScore.
+    """
+    warnings: List[str] = []
+    
+    # 1. Completeness Check
+    required_fields = [
+        "name", "age", "gender", "occupation", "education", "income", "bio",
+        "goals", "pain_points", "technology_usage", "buying_behavior",
+        "psychological_profile", "behavior_pattern", "big_five_personality"
+    ]
+    present_count = sum(1 for field in required_fields if persona.get(field) not in (None, "", [], {}))
+    completeness = round((present_count / len(required_fields)) * 100)
+    if completeness < 100:
+        missing = [f for f in required_fields if persona.get(f) in (None, "", [], {})]
+        warnings.append(f"Missing required fields: {', '.join(missing)}")
+
+    # 2. Realism Check
+    realism = 90
+    age_raw = persona.get("age")
+    try:
+        age = int(re.findall(r"\d+", str(age_raw))[0]) if age_raw is not None else 30
+    except (IndexError, ValueError):
+        age = 30
+        
+    if age < 18 or age > 80:
+        realism -= 30
+        warnings.append(f"Age {age} is outside plausible research range (18-80).")
+
+    bio = str(persona.get("bio", ""))
+    if len(bio) < 60:
+        realism -= 20
+        warnings.append("Bio is too brief for a realistic research persona.")
+        
+    occupation = str(persona.get("occupation", "")).lower()
+    income = str(persona.get("income", "")).lower()
+    education = str(persona.get("education", "")).lower()
+
+    if "student" in occupation and any(high in income for high in ["25 lpa", "30 lpa", "$150", "high income"]):
+        realism -= 25
+        warnings.append("⚠ Income and occupation may be inconsistent for student persona.")
+        
+    if age < 22 and any(senior in occupation for senior in ["senior", "director", "vp", "chief", "head of"]):
+        realism -= 25
+        warnings.append("⚠ Age and senior job title appear inconsistent.")
+        
+    realism = max(0, min(100, realism))
+
+    # 3. Coherence Check
+    coherence = 92
+    tech_usage = str(persona.get("technology_usage", "")).lower()
+    buying = str(persona.get("buying_behavior", "") or persona.get("buying_behaviour", "")).lower()
+    
+    if "low" in tech_usage and any(term in buying for term in ["early adopter", "automated", "tech-first"]):
+        coherence -= 20
+        warnings.append("⚠ Low technology usage conflicts with early adopter buying behavior.")
+
+    big_five = persona.get("big_five_personality", {})
+    if isinstance(big_five, Mapping):
+        openness = float(big_five.get("openness", 50))
+        if openness < 20 and "innovative" in bio.lower():
+            coherence -= 15
+            warnings.append("⚠ Big Five Openness score is low despite innovative bio description.")
+
+    coherence = max(0, min(100, coherence))
+
+    # 4. Behavioral Consistency Check
+    goals = persona.get("goals", [])
+    pain_points = persona.get("pain_points", [])
+    behavioral_consistency = 90
+    
+    if not isinstance(goals, list) or len(goals) < 2:
+        behavioral_consistency -= 15
+        warnings.append("⚠ Persona goals lack sufficient detail.")
+    if not isinstance(pain_points, list) or len(pain_points) < 2:
+        behavioral_consistency -= 15
+        warnings.append("⚠ Persona pain points lack sufficient detail.")
+
+    behavioral_consistency = max(0, min(100, behavioral_consistency))
+
+    # 5. Research Usefulness Check
+    usefulness = 95
+    if len(str(persona.get("name", ""))) < 2:
+        usefulness -= 30
+    if not persona.get("psychological_profile"):
+        usefulness -= 20
+    usefulness = max(0, min(100, usefulness))
+
+    # 6. Diversity Score relative to peers
+    diversity = evaluate_peer_diversity(persona, peers or [])
+
+    # Composite overall score
+    overall = round(
+        (completeness * 0.20) +
+        (realism * 0.20) +
+        (coherence * 0.20) +
+        (behavioral_consistency * 0.15) +
+        (usefulness * 0.15) +
+        (diversity * 0.10)
+    )
+    overall = max(0, min(100, overall))
+
+    needs_review = overall < QUALITY_THRESHOLD
+
+    return PersonaQualityScore(
+        overall_score=overall,
+        realism=realism,
+        coherence=coherence,
+        completeness=completeness,
+        diversity=diversity,
+        behavioral_consistency=behavioral_consistency,
+        research_usefulness=usefulness,
+        needs_review=needs_review,
+>>>>>>> f68520b (Save local changes)
         warnings=warnings,
     )
 
 
+<<<<<<< HEAD
 def evaluate_population_diversity(personas: Sequence[Mapping[str, Any]]) -> PopulationDiversityReport:
     """
     Evaluates entropy and diversity distribution across a population of generated personas.
@@ -298,4 +425,99 @@ def evaluate_population_diversity(personas: Sequence[Mapping[str, Any]]) -> Popu
         dimension_scores=dim_scores,
         warnings=warnings,
         status=status,
+=======
+def evaluate_peer_diversity(persona: Mapping[str, Any], peers: Sequence[Mapping[str, Any]]) -> int:
+    """Calculate diversity score (0-100) for a persona relative to its peer cohort."""
+    if not peers or len(peers) <= 1:
+        return 85
+
+    other_peers = [p for p in peers if p is not persona and str(p.get("id")) != str(persona.get("id"))]
+    if not other_peers:
+        return 85
+
+    my_occ = str(persona.get("occupation", "")).strip().lower()
+    my_gender = str(persona.get("gender", "")).strip().lower()
+    my_tech = str(persona.get("technology_usage", "")).strip().lower()
+    
+    occ_matches = sum(1 for p in other_peers if str(p.get("occupation", "")).strip().lower() == my_occ)
+    gender_matches = sum(1 for p in other_peers if str(p.get("gender", "")).strip().lower() == my_gender)
+    tech_matches = sum(1 for p in other_peers if str(p.get("technology_usage", "")).strip().lower() == my_tech)
+    
+    dup_penalty = (occ_matches * 15) + (gender_matches * 10) + (tech_matches * 10)
+    return max(40, min(100, round(95 - (dup_penalty / max(1, len(other_peers))))))
+
+
+def evaluate_population_diversity(personas: Sequence[Mapping[str, Any]]) -> PopulationDiversityReport:
+    """
+    Evaluate overall diversity across a population of generated personas.
+    """
+    if not personas:
+        return PopulationDiversityReport(diversity_score=0, is_low_diversity=True, diversity_warnings=["No personas to evaluate."])
+
+    total = len(personas)
+    age_dist: Dict[str, int] = {}
+    gender_dist: Dict[str, int] = {}
+    occ_dist: Dict[str, int] = {}
+    tech_dist: Dict[str, int] = {}
+    buying_dist: Dict[str, int] = {}
+    
+    warnings: List[str] = []
+
+    for p in personas:
+        # Age band
+        age_val = p.get("age", 30)
+        try:
+            age = int(re.findall(r"\d+", str(age_val))[0])
+        except Exception:
+            age = 30
+        band = "18-24" if age < 25 else "25-34" if age < 35 else "35-44" if age < 45 else "45-54" if age < 55 else "55+"
+        age_dist[band] = age_dist.get(band, 0) + 1
+        
+        # Gender
+        g = str(p.get("gender", "Mixed")).title()
+        gender_dist[g] = gender_dist.get(g, 0) + 1
+        
+        # Occupation
+        occ = str(p.get("occupation", "Professional")).title()
+        occ_dist[occ] = occ_dist.get(occ, 0) + 1
+
+        # Tech
+        tech = str(p.get("technology_usage", "Medium")).title()
+        tech_dist[tech] = tech_dist.get(tech, 0) + 1
+
+        # Buying
+        b = str(p.get("buying_behavior", "Value-seeking")).title()[:25]
+        buying_dist[b] = buying_dist.get(b, 0) + 1
+
+    # Check for excessive homogeneity (e.g. >70% identical in key attribute if N>=4)
+    diversity_score = 90
+    
+    if total >= 4:
+        max_occ_ratio = max(occ_dist.values()) / total
+        if max_occ_ratio >= 0.7:
+            diversity_score -= 25
+            warnings.append(f"Low persona diversity detected: {round(max_occ_ratio*100)}% of personas share the same occupation.")
+            
+        max_tech_ratio = max(tech_dist.values()) / total
+        if max_tech_ratio >= 0.75:
+            diversity_score -= 20
+            warnings.append(f"Low technology diversity detected: {round(max_tech_ratio*100)}% share the same tech adoption tier.")
+
+        max_gender_ratio = max(gender_dist.values()) / total
+        if max_gender_ratio == 1.0 and total >= 3:
+            diversity_score -= 15
+            warnings.append("Gender population lacks variation across persona cards.")
+
+    is_low = diversity_score < 70
+
+    return PopulationDiversityReport(
+        diversity_score=max(0, min(100, diversity_score)),
+        age_distribution=age_dist,
+        gender_distribution=gender_dist,
+        occupation_distribution=occ_dist,
+        technology_distribution=tech_dist,
+        buying_behavior_distribution=buying_dist,
+        is_low_diversity=is_low,
+        diversity_warnings=warnings,
+>>>>>>> f68520b (Save local changes)
     )

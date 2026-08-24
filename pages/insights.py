@@ -153,6 +153,7 @@ def main() -> None:
         "8. Segment Differences",
     ])
 
+<<<<<<< HEAD
     tab_mappings = [
         ("themes", insight_tabs[0]),
         ("pain_points", insight_tabs[1]),
@@ -162,6 +163,67 @@ def main() -> None:
         ("positive_signals", insight_tabs[5]),
         ("behavioral_patterns", insight_tabs[6]),
         ("segment_differences", insight_tabs[7]),
+=======
+    # Phase 8 & 9: Structured Insights & Evidence Traceability
+    structured_insights = insights.get("structured_insights", [])
+    if structured_insights:
+        st.subheader("🔍 Structured Research Insights & Evidence Traceability")
+        for ins in structured_insights:
+            with st.expander(f"{ins.get('type')}: {ins.get('title')} (Confidence {ins.get('confidence')}%)", expanded=False):
+                col_a, col_b = st.columns([2, 1])
+                with col_a:
+                    st.write(f"**Recommendation:** {ins.get('recommendation')}")
+                    st.write(f"**Evidence:** {ins.get('evidence_text')}")
+                    if ins.get("affected_personas"):
+                        st.caption(f"Affected Personas: {', '.join(ins.get('affected_personas'))}")
+                with col_b:
+                    st.metric("Severity", f"{ins.get('severity')}/100")
+                    st.metric("Confidence", f"{ins.get('confidence')}%")
+
+    theme_df = pd.DataFrame(insights.get("themes", []))
+    if not theme_df.empty:
+        st.plotly_chart(px.bar(theme_df, x="theme", y="count", title="Theme Frequency"), use_container_width=True)
+        st.dataframe(theme_df, use_container_width=True, hide_index=True)
+
+    sentiment_distribution = insights.get("sentiment_distribution", {})
+    if sentiment_distribution:
+        sentiment_df = pd.DataFrame(
+            [
+                {"Sentiment": key.title(), "Count": value.get("count", 0), "Confidence": value.get("confidence_score", 0)}
+                for key, value in sentiment_distribution.items()
+                if isinstance(value, dict)
+            ]
+        )
+        if not sentiment_df.empty:
+            st.plotly_chart(px.pie(sentiment_df, names="Sentiment", values="Count", title="Sentiment Distribution"), use_container_width=True)
+            st.dataframe(sentiment_df, use_container_width=True, hide_index=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Final AI Recommendations")
+        for item in insights.get("final_ai_recommendations", []):
+            if isinstance(item, dict):
+                st.write(f"- {item.get('recommendation', '')} _(confidence {item.get('confidence_score', 0)})_")
+            else:
+                st.write(f"- {item}")
+    with col2:
+        st.subheader("Top Quotes")
+        for quote in insights.get("top_quotes", []):
+            if isinstance(quote, dict):
+                st.write(f"> {quote.get('quote', '')}")
+                st.caption(f"{quote.get('persona_name', 'Persona')} | {quote.get('source', 'research')} | Confidence {quote.get('confidence_score', 0)}")
+            else:
+                st.write(f"> {quote}")
+
+    detail_tabs = st.tabs(["Keywords", "Pain Points", "Feature Requests", "Behavior", "Barriers", "Early Adopters"])
+    tab_payloads = [
+        insights.get("keywords", []),
+        insights.get("pain_points", []),
+        insights.get("feature_requests", []),
+        insights.get("behavior_patterns", []),
+        insights.get("product_adoption_barriers", []),
+        insights.get("early_adopter_detection", []),
+>>>>>>> f68520b (Save local changes)
     ]
 
     for key, tab in tab_mappings:

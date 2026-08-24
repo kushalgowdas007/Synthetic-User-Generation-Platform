@@ -54,7 +54,23 @@ DEFAULT_SURVEY_QUESTIONS: List[Dict[str, Any]] = [
     },
 ]
 
-SURVEY_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
+class _CaseInsensitiveTemplatesDict(dict):
+    def __getitem__(self, key: str) -> Any:
+        if key in self:
+            return super().__getitem__(key)
+        key_lower = str(key).lower()
+        for k in self:
+            if str(k).lower() == key_lower:
+                return super().__getitem__(k)
+        return super().__getitem__(key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+SURVEY_TEMPLATES: Dict[str, List[Dict[str, Any]]] = _CaseInsensitiveTemplatesDict({
     "Product Adoption": DEFAULT_SURVEY_QUESTIONS,
     "Pricing and Value": [
         {
@@ -190,7 +206,7 @@ SURVEY_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
             "weight": 1,
         },
     ],
-}
+})
 
 # Backward-compatible aliases for older code/templates.
 SURVEY_TEMPLATES["Product adoption"] = SURVEY_TEMPLATES["Product Adoption"]

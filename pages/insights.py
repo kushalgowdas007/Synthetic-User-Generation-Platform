@@ -23,11 +23,11 @@ from services.insight_agent import extract_research_insights
 
 def render_structured_insight_card(item: dict) -> None:
     title = item.get("title", "Insight")
-    itype = item.get("type", "General")
+    insight_type = item.get("type", "General")
     importance = item.get("severity_or_importance", item.get("severity", 70))
     confidence = item.get("confidence", 80)
-    aff_count = item.get("affected_personas_count", len(item.get("affected_personas", [])))
-    aff_personas = item.get("affected_personas", [])
+    affected_count = item.get("affected_personas_count", len(item.get("affected_personas", [])))
+    affected_personas = item.get("affected_personas", [])
     evidence_list = item.get("evidence", [])
     recommendation = item.get("recommendation", "")
 
@@ -41,36 +41,39 @@ def render_structured_insight_card(item: dict) -> None:
         "Behavioral Pattern": "#8b5cf6",
         "Segment Difference": "#0284c7",
     }
-    badge_bg = type_colors.get(itype, "#64748b")
+    badge_bg = type_colors.get(insight_type, "#64748b")
 
     with st.container(border=True):
         head_col1, head_col2 = st.columns([3, 1])
         with head_col1:
             st.markdown(
-                f'<span style="background:{badge_bg};color:white;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:bold;margin-right:8px;">{itype}</span>'
+                f'<span style="background:{badge_bg};color:white;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:bold;margin-right:8px;">{insight_type}</span>'
                 f'<b style="font-size:1.05rem;">{title}</b>',
                 unsafe_allow_html=True,
             )
         with head_col2:
-            st.caption(f"Importance: **{importance}/100** | Conf: **{confidence}%**")
+            st.caption(f"Importance: **{importance}/100** | Confidence: **{confidence}%**")
 
-        st.caption(f"Affected Personas ({aff_count}): {', '.join(aff_personas[:4]) if aff_personas else 'Cohort Wide'}")
+        if affected_personas:
+            st.caption(f"Affected Personas ({affected_count}): {', '.join(affected_personas[:4])}")
+        else:
+            st.caption(f"Affected Personas ({affected_count}): Cohort wide")
 
         if evidence_list:
-            st.markdown("**Evidence Traceability (Why?):**")
-            for ev in evidence_list:
-                if isinstance(ev, dict):
-                    src = ev.get("source_type", "Source")
-                    det = ev.get("source_detail", "")
-                    quote = ev.get("metric_or_quote", "")
-                    st.markdown(f"- 🔍 _[{src.upper()}]_ **{det}**: {quote}")
+            st.markdown("**Evidence Traceability**")
+            for evidence in evidence_list:
+                if isinstance(evidence, dict):
+                    source = evidence.get("source_type", "Source")
+                    detail = evidence.get("source_detail") or evidence.get("source_ref") or evidence.get("detail", "")
+                    quote = evidence.get("metric_or_quote") or evidence.get("detail", "")
+                    st.markdown(f"- _[{str(source).upper()}]_ **{detail}**: {quote}")
                 else:
-                    st.markdown(f"- 🔍 {ev}")
+                    st.markdown(f"- {evidence}")
         else:
-            st.markdown("- 🔍 _Insufficient quantitative evidence recorded._")
+            st.markdown("- Insufficient quantitative evidence recorded.")
 
         if recommendation:
-            st.info(f"💡 **Recommended Action:** {recommendation}")
+            st.info(f"Recommended Action: {recommendation}")
 
 
 def main() -> None:
@@ -90,7 +93,7 @@ def main() -> None:
     survey_results = get_survey_results()
     interview_rows = get_interview_results()
     focus_rows = st.session_state.get("focus_group_results", [])
-    
+
     has_research_data = bool(survey_results or interview_rows or focus_rows)
     if not has_research_data:
         st.warning("Run the Survey, conduct an Interview, or moderate a Focus Group before extracting insights.")
@@ -105,7 +108,7 @@ def main() -> None:
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        extract_clicked = st.button("🚀 Extract & Cluster Research Insights", use_container_width=True)
+        extract_clicked = st.button("Extract & Cluster Research Insights", use_container_width=True)
     with col2:
         bypass_cache = st.checkbox("Bypass cache", value=False, help="Force re-extraction of insights")
 
@@ -129,31 +132,29 @@ def main() -> None:
         st.info("Click 'Extract & Cluster Research Insights' to organize your research data.")
         return
 
-    # Top KPI Metrics
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     metric_col1.metric("Overall Sentiment", str(insights.get("sentiment", "N/A")).title())
     metric_col2.metric("Product Fit Score", f"{float(insights.get('product_fit_score', 0) or 0):.1f}/100")
     metric_col3.metric("Survey Data Points", insights.get("response_count", 0))
     metric_col4.metric("Qualitative Turns", insights.get("interview_message_count", 0))
 
-    st.info(f"📋 **Executive Research Summary:** {insights.get('executive_summary', '')}")
+    st.info(f"Executive Research Summary: {insights.get('executive_summary', '')}")
 
-    # 8 Structured Insight Category Tabs
     st.subheader("Clustered Findings & Evidence")
-    clusters = insights.get("structured_clusters", {})
+    clusters = insights.get("structured_clusters", {}) if isinstance(insights.get("structured_clusters", {}), dict) else {}
+    insight_tabs = st.tabs(
+        [
+            "1. Themes",
+            "2. Pain Points",
+            "3. Opportunities",
+            "4. Contradictions",
+            "5. Risks",
+            "6. Positive Signals",
+            "7. Behavioral Patterns",
+            "8. Segment Differences",
+        ]
+    )
 
-    insight_tabs = st.tabs([
-        "1. Themes",
-        "2. Pain Points",
-        "3. Opportunities",
-        "4. Contradictions",
-        "5. Risks",
-        "6. Positive Signals",
-        "7. Behavioral Patterns",
-        "8. Segment Differences",
-    ])
-
-<<<<<<< HEAD
     tab_mappings = [
         ("themes", insight_tabs[0]),
         ("pain_points", insight_tabs[1]),
@@ -163,117 +164,68 @@ def main() -> None:
         ("positive_signals", insight_tabs[5]),
         ("behavioral_patterns", insight_tabs[6]),
         ("segment_differences", insight_tabs[7]),
-=======
-    # Phase 8 & 9: Structured Insights & Evidence Traceability
-    structured_insights = insights.get("structured_insights", [])
-    if structured_insights:
-        st.subheader("🔍 Structured Research Insights & Evidence Traceability")
-        for ins in structured_insights:
-            with st.expander(f"{ins.get('type')}: {ins.get('title')} (Confidence {ins.get('confidence')}%)", expanded=False):
-                col_a, col_b = st.columns([2, 1])
-                with col_a:
-                    st.write(f"**Recommendation:** {ins.get('recommendation')}")
-                    st.write(f"**Evidence:** {ins.get('evidence_text')}")
-                    if ins.get("affected_personas"):
-                        st.caption(f"Affected Personas: {', '.join(ins.get('affected_personas'))}")
-                with col_b:
-                    st.metric("Severity", f"{ins.get('severity')}/100")
-                    st.metric("Confidence", f"{ins.get('confidence')}%")
-
-    theme_df = pd.DataFrame(insights.get("themes", []))
-    if not theme_df.empty:
-        st.plotly_chart(px.bar(theme_df, x="theme", y="count", title="Theme Frequency"), use_container_width=True)
-        st.dataframe(theme_df, use_container_width=True, hide_index=True)
-
-    sentiment_distribution = insights.get("sentiment_distribution", {})
-    if sentiment_distribution:
-        sentiment_df = pd.DataFrame(
-            [
-                {"Sentiment": key.title(), "Count": value.get("count", 0), "Confidence": value.get("confidence_score", 0)}
-                for key, value in sentiment_distribution.items()
-                if isinstance(value, dict)
-            ]
-        )
-        if not sentiment_df.empty:
-            st.plotly_chart(px.pie(sentiment_df, names="Sentiment", values="Count", title="Sentiment Distribution"), use_container_width=True)
-            st.dataframe(sentiment_df, use_container_width=True, hide_index=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Final AI Recommendations")
-        for item in insights.get("final_ai_recommendations", []):
-            if isinstance(item, dict):
-                st.write(f"- {item.get('recommendation', '')} _(confidence {item.get('confidence_score', 0)})_")
-            else:
-                st.write(f"- {item}")
-    with col2:
-        st.subheader("Top Quotes")
-        for quote in insights.get("top_quotes", []):
-            if isinstance(quote, dict):
-                st.write(f"> {quote.get('quote', '')}")
-                st.caption(f"{quote.get('persona_name', 'Persona')} | {quote.get('source', 'research')} | Confidence {quote.get('confidence_score', 0)}")
-            else:
-                st.write(f"> {quote}")
-
-    detail_tabs = st.tabs(["Keywords", "Pain Points", "Feature Requests", "Behavior", "Barriers", "Early Adopters"])
-    tab_payloads = [
-        insights.get("keywords", []),
-        insights.get("pain_points", []),
-        insights.get("feature_requests", []),
-        insights.get("behavior_patterns", []),
-        insights.get("product_adoption_barriers", []),
-        insights.get("early_adopter_detection", []),
->>>>>>> f68520b (Save local changes)
     ]
 
     for key, tab in tab_mappings:
         with tab:
             items = clusters.get(key, [])
             if not items:
-                st.info(f"No specific records identified for this category.")
+                st.info("No specific records identified for this category.")
             else:
                 for item in items:
                     render_structured_insight_card(item)
 
-    st.divider()
+    structured_insights = insights.get("structured_insights", [])
+    if structured_insights and not any(clusters.values()):
+        st.subheader("Structured Research Insights")
+        for item in structured_insights:
+            render_structured_insight_card(item)
 
-    # Visualizations
+    st.divider()
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
         theme_df = pd.DataFrame(insights.get("themes", []))
         if not theme_df.empty:
-            st.plotly_chart(px.bar(theme_df, x="theme", y="count", title="Theme Mention Frequency", color="count"), use_container_width=True)
+            st.plotly_chart(
+                px.bar(theme_df, x="theme", y="count", title="Theme Mention Frequency", color="count"),
+                use_container_width=True,
+            )
     with chart_col2:
         sentiment_distribution = insights.get("sentiment_distribution", {})
         if sentiment_distribution:
             sentiment_df = pd.DataFrame(
                 [
-                    {"Sentiment": k.title(), "Count": v.get("count", 0)}
-                    for k, v in sentiment_distribution.items()
-                    if isinstance(v, dict)
+                    {"Sentiment": key.title(), "Count": value.get("count", 0)}
+                    for key, value in sentiment_distribution.items()
+                    if isinstance(value, dict)
                 ]
             )
             if not sentiment_df.empty:
-                st.plotly_chart(px.pie(sentiment_df, names="Sentiment", values="Count", title="Cohort Sentiment Distribution"), use_container_width=True)
+                st.plotly_chart(
+                    px.pie(sentiment_df, names="Sentiment", values="Count", title="Cohort Sentiment Distribution"),
+                    use_container_width=True,
+                )
 
-    # Top Quotes & AI Recommendations
-    q_col, r_col = st.columns(2)
-    with q_col:
+    quote_col, recommendation_col = st.columns(2)
+    with quote_col:
         st.subheader("Verbatim Persona Quotes")
-        for q in insights.get("top_quotes", []):
-            if isinstance(q, dict):
-                st.markdown(f"> \"{q.get('quote', '')}\"")
-                st.caption(f"— **{q.get('persona_name', 'Persona')}** ({q.get('source', 'session')})")
+        for quote in insights.get("top_quotes", []):
+            if isinstance(quote, dict):
+                st.markdown(f"> \"{quote.get('quote', '')}\"")
+                st.caption(f"{quote.get('persona_name', 'Persona')} ({quote.get('source', 'session')})")
             else:
-                st.markdown(f"> \"{q}\"")
+                st.markdown(f"> \"{quote}\"")
 
-    with r_col:
+    with recommendation_col:
         st.subheader("AI Synthesized Recommendations")
-        for rec in insights.get("final_ai_recommendations", []):
-            if isinstance(rec, dict):
-                st.markdown(f"• **{rec.get('recommendation', '')}** _(Confidence: {rec.get('confidence_score', 80)}%)_")
+        for recommendation in insights.get("final_ai_recommendations", []):
+            if isinstance(recommendation, dict):
+                st.markdown(
+                    f"- **{recommendation.get('recommendation', '')}** "
+                    f"_(Confidence: {recommendation.get('confidence_score', 80)}%)_"
+                )
             else:
-                st.markdown(f"• {rec}")
+                st.markdown(f"- {recommendation}")
 
     st.divider()
     download_col1, download_col2 = st.columns(2)
@@ -286,7 +238,11 @@ def main() -> None:
             use_container_width=True,
         )
     with download_col2:
-        st.page_link("pages/consultant.py", label="Proceed to Product Consultant & Decision Action Center →", use_container_width=True)
+        st.page_link(
+            "pages/consultant.py",
+            label="Proceed to Product Consultant & Decision Action Center ->",
+            use_container_width=True,
+        )
 
     st.divider()
     render_synthetic_disclaimer()

@@ -131,255 +131,6 @@ def _collect_text(
     return [item for item in texts if item["text"].strip()]
 
 
-<<<<<<< HEAD
-=======
-def extract_research_insights(
-    *,
-    experiment: Mapping[str, Any],
-    personas: Sequence[Mapping[str, Any]],
-    survey_results: Mapping[str, Any] | None,
-    interview_rows: Sequence[Mapping[str, Any]],
-) -> Dict[str, Any]:
-    text_items = _collect_text(survey_results, interview_rows)
-    texts = [item["text"] for item in text_items]
-    combined = " ".join(texts).lower()
-    total_texts = max(1, len(texts))
-
-    theme_counter: Counter[str] = Counter()
-    for theme, keywords in THEME_KEYWORDS.items():
-        theme_counter[theme] = sum(combined.count(keyword) for keyword in keywords)
-
-    pain_counter: Counter[str] = Counter()
-    behavior_counter: Counter[str] = Counter()
-    barrier_counter: Counter[str] = Counter()
-    segment_map: defaultdict[str, List[str]] = defaultdict(list)
-    early_adopters: List[Dict[str, Any]] = []
-
-    survey_scores_by_persona: defaultdict[str, List[float]] = defaultdict(list)
-    for response in (survey_results or {}).get("responses", []):
-        if isinstance(response, Mapping):
-            survey_scores_by_persona[str(response.get("persona_name", "Persona"))].append(float(response.get("score", 0) or 0))
-            fit_details = response.get("product_fit_details", {})
-            if isinstance(fit_details, Mapping):
-                for weakness in fit_details.get("weaknesses", []):
-                    barrier_counter[str(weakness)] += 1
-
-    for persona in personas:
-        persona_name = str(persona.get("name", "Persona"))
-        tech = str(persona.get("technology_usage", "Unknown"))
-        segment_map[tech].append(persona_name)
-        for pain in _as_list(persona.get("pain_points")):
-            pain_counter[pain] += 1
-            for theme, keywords in THEME_KEYWORDS.items():
-                if any(keyword in pain.lower() for keyword in keywords):
-                    theme_counter[theme] += 1
-                    barrier_counter[pain] += 1
-        value = persona.get("behavior_pattern")
-        if isinstance(value, Mapping):
-            for item in value.values():
-                behavior_counter[str(item)] += 1
-        else:
-            behavior_counter.update(_as_list(value))
-
-        big_five = persona.get("big_five_personality") or persona.get("big_five") or {}
-        openness = float(big_five.get("openness", 55) or 55) if isinstance(big_five, Mapping) else 55.0
-        tech_bonus = 20 if any(term in tech.lower() for term in ("high", "advanced", "mobile")) else 6
-        avg_survey_score = _mean(survey_scores_by_persona.get(persona_name, []))
-        adopter_score = round((openness * 0.45) + (avg_survey_score * 0.40) + tech_bonus, 2)
-        if adopter_score >= 68:
-            early_adopters.append(
-                {
-                    "persona": persona_name,
-                    "score": min(100, adopter_score),
-                    "segment": tech,
-                    "confidence_score": _confidence(1 + len(survey_scores_by_persona.get(persona_name, [])), total_texts),
-                }
-            )
-
-    keyword_counter = Counter(_tokens(combined))
-    feature_counter = Counter()
-    for keyword in FEATURE_KEYWORDS:
-        count = combined.count(keyword)
-        if count:
-            feature_counter[keyword.title()] = count
-
-    survey_scores = [
-        float(response.get("score", 0) or 0)
-        for response in (survey_results or {}).get("responses", [])
-        if isinstance(response, Mapping)
-    ]
-    product_fit = round(_mean(survey_scores), 2)
-    recommendation_score = _recommendation_score(survey_results, interview_rows, product_fit)
-    sentiment_counts = _sentiment_counts(survey_scores, interview_rows)
-    sentiment = max(sentiment_counts.items(), key=lambda item: item[1])[0] if sentiment_counts else _sentiment_from_score(product_fit)
-
-    top_quotes = _top_quotes(text_items, survey_results, interview_rows)
-    final_recommendations = _recommendations(theme_counter, barrier_counter, product_fit, recommendation_score)
-
-    themes = [
-        {"theme": theme, "count": count, "confidence_score": _confidence(count, total_texts)}
-        for theme, count in theme_counter.most_common()
-        if count > 0
-    ]
-
-    tokens = [token for token in re.findall(r"[a-z]{4,}", combined) if token not in {"this", "that", "with", "from", "would", "product", "because", "response", "persona"}]
-    keyword_frequency = [{"keyword": word, "count": count} for word, count in Counter(tokens).most_common(12)]
-    topic_clusters = [
-        {"topic": theme, "keywords": keywords, "mentions": theme_counter[theme]}
-        for theme, keywords in THEME_KEYWORDS.items() if theme_counter[theme]
-    ]
-    risks = []
-    for theme in ("Pricing", "Trust", "Risk", "Onboarding"):
-        if theme_counter[theme]:
-            risks.append(f"{theme} is a recurring adoption risk and should be addressed before launch.")
-    if product_fit < 50:
-        risks.append("The current product-fit score is below the validation threshold.")
-    confidence = min(100, round(35 + min(len(texts), 30) * 2 + min(sum(theme_counter.values()), 20) * 1.5, 1))
-    executive_summary = _summarize_feedback(theme_counter, product_fit)
-
-    confidence = min(100, round(35 + min(len(texts), 30) * 2 + min(sum(theme_counter.values()), 20) * 1.5, 1))
-    executive_summary = _summarize_feedback(theme_counter, product_fit)
-
-    # ------------------------------------------------------------
-    # PHASES 8 & 9: STRUCTURED INSIGHTS & EVIDENCE TRACEABILITY
-    # ------------------------------------------------------------
-    structured_insights: List[Dict[str, Any]] = []
-    
-    # 1. Pain Points
-    for idx, (pain, count) in enumerate(pain_counter.most_common(5), 1):
-        affected_count = sum(1 for p in personas if pain in _as_list(p.get("pain_points")))
-        evidence = [
-            {
-                "source_type": "persona_profile",
-                "source_ref": "pain_points",
-                "detail": f"{affected_count} of {len(personas)} personas explicitly list this pain point.",
-                "sample_size": len(personas),
-                "confidence": _confidence(affected_count, max(1, len(personas)))
-            }
-        ]
-        structured_insights.append({
-            "id": f"ins_pain_{idx}",
-            "title": f"Friction: {pain}",
-            "type": "Pain Point",
-            "severity": min(95, 50 + count * 10),
-            "confidence": _confidence(count, max(1, len(personas))),
-            "affected_personas_count": affected_count,
-            "affected_personas": [str(p.get("name")) for p in personas if pain in _as_list(p.get("pain_points"))],
-            "evidence": evidence,
-            "evidence_text": f"Survey/Interview Mentions: {count} | Affected Personas: {affected_count}/{len(personas)}",
-            "sources": ["persona_profile", "survey", "interview"],
-            "recommendation": f"Design features to eliminate '{pain}' in onboarding.",
-        })
-
-    # 2. Themes / Opportunities
-    for idx, (theme, count) in enumerate(theme_counter.most_common(4), 1):
-        if count > 0:
-            structured_insights.append({
-                "id": f"ins_theme_{idx}",
-                "title": f"Strategic Theme: {theme}",
-                "type": "Opportunity",
-                "severity": 40,
-                "confidence": _confidence(count, total_texts),
-                "affected_personas_count": len(personas),
-                "affected_personas": [str(p.get("name")) for p in personas],
-                "evidence": [
-                    {
-                        "source_type": "analytics",
-                        "source_ref": "theme_keywords",
-                        "detail": f"Keyword cluster '{theme}' mentioned {count} times across responses.",
-                        "sample_size": total_texts,
-                        "confidence": _confidence(count, total_texts)
-                    }
-                ],
-                "evidence_text": f"Theme mentions across transcript: {count}",
-                "sources": ["survey", "interview", "focus_group"],
-                "recommendation": f"Focus messaging and product design around {theme.lower()}.",
-            })
-
-    # 3. Risks & Contradictions
-    for idx, risk_text in enumerate(risks, 1):
-        structured_insights.append({
-            "id": f"ins_risk_{idx}",
-            "title": f"Risk Signal {idx}",
-            "type": "Risk",
-            "severity": 80 if product_fit < 50 else 60,
-            "confidence": 85,
-            "affected_personas_count": len(personas),
-            "affected_personas": [str(p.get("name")) for p in personas],
-            "evidence": [
-                {
-                    "source_type": "analytics",
-                    "source_ref": "risk_analysis",
-                    "detail": risk_text,
-                    "sample_size": total_texts,
-                    "confidence": 85
-                }
-            ],
-            "evidence_text": risk_text if "evidence" in risk_text.lower() else "Insufficient quantitative evidence",
-            "sources": ["analytics"],
-            "recommendation": f"Mitigate risk: {risk_text}",
-        })
-
-    return {
-        "product_name": experiment.get("product_name", ""),
-        "structured_insights": structured_insights,
-        "themes": themes,
-        "keywords": [
-            {"keyword": keyword, "count": count, "confidence_score": _confidence(count, total_texts)}
-            for keyword, count in keyword_counter.most_common(18)
-        ],
-        "pain_points": [
-            {"pain_point": pain, "count": count, "confidence_score": _confidence(count, max(1, len(personas)))}
-            for pain, count in pain_counter.most_common(10)
-        ],
-        "feature_requests": [
-            {"feature": feature, "count": count, "confidence_score": _confidence(count, total_texts)}
-            for feature, count in feature_counter.most_common(10)
-        ],
-        "positive_sentiment": _sentiment_record("positive", sentiment_counts, total_texts),
-        "neutral_sentiment": _sentiment_record("neutral", sentiment_counts, total_texts),
-        "negative_sentiment": _sentiment_record("negative", sentiment_counts, total_texts),
-        "sentiment_distribution": {
-            key: {"count": value, "confidence_score": _confidence(value, max(1, sum(sentiment_counts.values())))}
-            for key, value in sentiment_counts.items()
-        },
-        "sentiment": sentiment,
-        "behavior_patterns": [
-            {"pattern": pattern, "count": count, "confidence_score": _confidence(count, max(1, len(personas)))}
-            for pattern, count in behavior_counter.most_common(10)
-        ],
-        "product_adoption_barriers": [
-            {"barrier": barrier, "count": count, "confidence_score": _confidence(count, total_texts)}
-            for barrier, count in barrier_counter.most_common(10)
-        ],
-        "product_fit_score": product_fit,
-        "product_fit_confidence_score": _confidence(len(survey_scores), max(1, len(personas) * 3), base=58),
-        "recommendation_score": recommendation_score,
-        "recommendation_confidence_score": _confidence(len(survey_scores) + len(interview_rows), total_texts, base=58),
-        "early_adopter_detection": sorted(early_adopters, key=lambda item: item["score"], reverse=True),
-        "persona_segmentation": {
-            segment: {"personas": names, "count": len(names), "confidence_score": _confidence(len(names), max(1, len(personas)))}
-            for segment, names in segment_map.items()
-        },
-        "top_quotes": top_quotes,
-
-        "final_ai_recommendations": final_recommendations,
-        "recommendations": [item["recommendation"] for item in final_recommendations],
-        "product_feedback": _summarize_feedback(theme_counter, product_fit),
-        "would_use_product_score": recommendation_score,
-
-        "keyword_frequency": keyword_frequency,
-        "topic_clusters": topic_clusters,
-        "risk_analysis": risks or ["No material risk signal was detected in the available responses."],
-        "confidence_score": confidence,
-        "executive_summary": executive_summary,
-
-        "response_count": len((survey_results or {}).get("responses", [])),
-        "interview_message_count": len(interview_rows),
-    }
-
-
->>>>>>> f68520b (Save local changes)
 def _mean(values: Sequence[float]) -> float:
     if not values:
         return 0.0
@@ -717,6 +468,21 @@ def extract_research_insights(
         top_quotes = _top_quotes(text_items, survey_results, combined_conversation)
         final_recommendations = _recommendations(theme_counter, barrier_counter, product_fit, recommendation_score)
         executive_summary = _summarize_feedback(theme_counter, product_fit)
+        structured_insights = [
+            item
+            for grouped_items in structured_clusters.values()
+            for item in grouped_items
+        ]
+        keyword_frequency = [
+            {"keyword": keyword, "count": count}
+            for keyword, count in keyword_counter.most_common(12)
+        ]
+        topic_clusters = [
+            {"topic": theme, "keywords": keywords, "mentions": theme_counter[theme]}
+            for theme, keywords in THEME_KEYWORDS.items()
+            if theme_counter[theme]
+        ]
+        sentiment_total = max(1, sum(sentiment_counts.values()))
 
         payload = {
             "product_name": experiment.get("product_name", ""),
@@ -736,6 +502,18 @@ def extract_research_insights(
                 {"feature": f, "count": cnt, "confidence_score": _confidence(cnt, total_texts)}
                 for f, cnt in feature_counter.most_common(10)
             ],
+            "positive_sentiment": {
+                "count": sentiment_counts.get("positive", 0),
+                "confidence_score": _confidence(sentiment_counts.get("positive", 0), sentiment_total),
+            },
+            "neutral_sentiment": {
+                "count": sentiment_counts.get("neutral", 0),
+                "confidence_score": _confidence(sentiment_counts.get("neutral", 0), sentiment_total),
+            },
+            "negative_sentiment": {
+                "count": sentiment_counts.get("negative", 0),
+                "confidence_score": _confidence(sentiment_counts.get("negative", 0), sentiment_total),
+            },
             "sentiment": sentiment,
             "sentiment_distribution": {
                 k: {"count": v, "confidence_score": _confidence(v, max(1, sum(sentiment_counts.values())))}
@@ -753,6 +531,9 @@ def extract_research_insights(
             "product_feedback": executive_summary,
             "executive_summary": executive_summary,
             "structured_clusters": structured_clusters,
+            "structured_insights": structured_insights,
+            "keyword_frequency": keyword_frequency,
+            "topic_clusters": topic_clusters,
             "risk_analysis": risks_text or ["No material risk signal was detected in the available responses."],
             "confidence_score": min(100, round(35 + min(len(texts), 30) * 2 + min(sum(theme_counter.values()), 20) * 1.5, 1)),
             "response_count": len(survey_responses),

@@ -173,7 +173,7 @@ def render_persona_card(persona: dict) -> None:
 
 
 def render_comparison_matrix(personas: list[dict]) -> None:
-<<<<<<< HEAD
+
     """Renders a responsive side-by-side comparison matrix for 2-4 selected personas."""
     st.subheader("⚖ Persona Comparison Matrix")
     persona_options = {p.get("id", str(idx)): f"{p.get('name', 'Persona')} ({p.get('occupation', 'Role')})" for idx, p in enumerate(personas)}
@@ -217,7 +217,7 @@ def render_comparison_matrix(personas: list[dict]) -> None:
                     st.markdown(f"**{label}**")
                     st.write(str(val))
                     st.markdown("<hr style='margin:4px 0;opacity:0.2'/>", unsafe_allow_html=True)
-=======
+
     """Render Phase 14 side-by-side persona comparison matrix for 2-4 selected personas."""
     with st.expander("⚖ Persona Comparison Matrix (Select 2–4 Personas)", expanded=False):
         if len(personas) < 2:
@@ -253,30 +253,30 @@ def render_comparison_matrix(personas: list[dict]) -> None:
                     
                 st.write("**Buying Behavior:**")
                 st.caption(str(persona_value(persona, "buying_behavior")))
->>>>>>> f68520b (Save local changes)
+
 
 
 def main() -> None:
     st.set_page_config(page_title="Persona Cards", layout="wide")
     init_session_state()
     render_sidebar("Persona Cards")
-<<<<<<< HEAD
+
     render_page_header(
         "Persona Cards & Quality Inspection",
         "Review, filter, inspect quality scores, compare cohorts, and export generated personas.",
         active_stage="Persona Cards",
     )
-=======
+
     render_page_header("Persona Cards", "Review, filter, sort, compare, and export generated personas.")
->>>>>>> f68520b (Save local changes)
+
 
     personas = require_personas()
     if personas is None:
         return
 
-<<<<<<< HEAD
+
     tabs = st.tabs(["📇 Persona Gallery / List", "⚖ Side-by-Side Comparison Matrix"])
-=======
+
     render_comparison_matrix(personas)
 
     view_col, score_col = st.columns([1, 2])
@@ -286,7 +286,7 @@ def main() -> None:
         st.caption("Quality score combines data completeness, consistency, and behavioral realism.")
     visible_personas = filtered_personas(get_personas())
     st.caption(f"Showing {len(visible_personas)} of {len(personas)} personas")
->>>>>>> f68520b (Save local changes)
+
 
     with tabs[0]:
         view_col, score_col = st.columns([1, 2])
@@ -298,7 +298,7 @@ def main() -> None:
         visible_personas = filtered_personas(get_personas())
         st.caption(f"Showing {len(visible_personas)} of {len(personas)} personas")
 
-<<<<<<< HEAD
+
         export_df = records_to_dataframe(visible_personas)
         export_col1, export_col2 = st.columns(2)
         with export_col1:
@@ -334,7 +334,7 @@ def main() -> None:
 
     st.divider()
     render_synthetic_disclaimer()
-=======
+
     if view_mode == "List":
         st.dataframe(records_to_dataframe(visible_personas), use_container_width=True, hide_index=True)
     else:
@@ -347,7 +347,7 @@ def main() -> None:
                     if q_score < 70 or persona.get("needs_review"):
                         st.warning("⚠ Needs Review — Quality Score < 70")
                     render_persona_card(persona)
->>>>>>> f68520b (Save local changes)
+
 
 
 if __name__ == "__main__":

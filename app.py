@@ -108,7 +108,7 @@ def render_workspace() -> None:
     with hero_left:
         st.caption("Research Copilot → Personas → Survey → Interviews → Focus Group → Insights → Executive Decision")
     with hero_right:
-<<<<<<< HEAD
+
         if st.button("Load demo brief", use_container_width=True):
             st.session_state["experiment"] = {
                 "experiment_name": "Orbit launch validation",
@@ -127,7 +127,6 @@ def render_workspace() -> None:
                 "interests": "AI, product discovery, productivity",
             }
             st.session_state["toast_message"] = "Demo brief loaded. Generate personas when ready."
-=======
         if st.button("🚀 Load Demo Research Session", use_container_width=True):
             exp = {"experiment_name":"AI Personal Finance Assistant", "product_name":"Orbit Money", "description":"An automated AI personal finance assistant that budgets and optimizes investments.", "target_audience":"Young working professionals in urban tech hubs", "research_objective":"Validate trust, data privacy concerns, and willingness to pay monthly subscription.", "research_goal":"Validate trust, data privacy concerns, and willingness to pay monthly subscription.", "industry":"Finance", "simulation_type":"Customer Persona", "persona_count":4, "age":"24-38", "gender":"Mixed", "profession":"Software Engineer, Analyst, Designer", "location":"India", "interests":"Fintech, Investing, AI"}
             demo_personas = [
@@ -137,7 +136,6 @@ def render_workspace() -> None:
             st.session_state["experiment"] = exp
             st.session_state["personas"] = demo_personas
             st.session_state["toast_message"] = "Full AI Personal Finance demo research loaded into workspace!"
->>>>>>> f68520b (Save local changes)
             st.rerun()
 
     personas = get_personas()
@@ -301,48 +299,31 @@ def render_workspace() -> None:
         from services.persona_quality import evaluate_persona_quality, evaluate_population_diversity
         import time
 
-<<<<<<< HEAD
         try:
             progress = st.progress(0, text="Preparing persona generation request")
-            with st.spinner("Generating personas with Gemini and Faker enrichment..."):
-                progress.progress(20, text="Validating experiment context")
-                generator = PersonaGenerator()
-                progress.progress(45, text="Generating persona cohort")
-                generated_personas = generator.generate_personas(
-                    age=experiment_payload["age"],
-                    gender=experiment_payload["gender"],
-                    profession=experiment_payload["profession"],
-                    location=experiment_payload["location"],
-                    interests=experiment_payload["interests"],
-                    persona_count=experiment_payload["persona_count"],
-                    product_name=experiment_payload["product_name"],
-                    description=experiment_payload["description"],
-                    target_audience=experiment_payload["target_audience"],
-                    research_objective=experiment_payload["research_objective"],
-                    industry=experiment_payload["industry"],
-                    simulation_type=experiment_payload["simulation_type"],
+            exp_sig = compute_experiment_signature(experiment_payload)
+            st.session_state["experiment_signature"] = exp_sig
+
+            cached_personas = (
+                st.session_state.get("cached_personas_store", {}).get(exp_sig)
+            )
+
+            start_time = time.time()
+            generator = None
+
+            if cached_personas:
+                generated_personas = cached_personas
+                st.info("⚡ Loaded from cache — Gemini call avoided.")
+                record_performance_metric(
+                    "persona_generation",
+                    time.time() - start_time,
+                    cache_hit=True,
                 )
-                progress.progress(90, text="Auditing quality scores and population diversity")
-        except Exception as exc:
-            st.error(f"Persona generation failed. Detail: {exc}")
-            return
-=======
-        exp_sig = compute_experiment_signature(experiment_payload)
-        st.session_state["experiment_signature"] = exp_sig
-
-        # Check if identical experiment personas exist in state cache
-        cached_personas = st.session_state.get("cached_personas_store", {}).get(exp_sig)
-
-        start_time = time.time()
-        if cached_personas:
-            generated_personas = cached_personas
-            st.info("⚡ Loaded from cache — Gemini call avoided.")
-            record_performance_metric("persona_generation", time.time() - start_time, cache_hit=True)
-        else:
-            st.info("✨ Generating new personas...")
-            try:
-                progress = st.progress(0, text="Preparing persona generation request")
-                with st.spinner("Generating personas with Gemini batch generation and Faker enrichment..."):
+            else:
+                st.info("✨ Generating new personas...")
+                with st.spinner(
+                    "Generating personas with Gemini batch generation and Faker enrichment..."
+                ):
                     progress.progress(20, text="Validating experiment context")
                     generator = PersonaGenerator()
                     progress.progress(45, text="Generating persona profiles")
@@ -360,15 +341,23 @@ def render_workspace() -> None:
                         industry=experiment_payload["industry"],
                         simulation_type=experiment_payload["simulation_type"],
                     )
-                    progress.progress(90, text="Scoring quality and population diversity")
-                    
-                    # Store in cache
-                    st.session_state.setdefault("cached_personas_store", {})[exp_sig] = generated_personas
-                    record_performance_metric("persona_generation", time.time() - start_time, cache_hit=False)
-            except Exception as exc:
-                st.error(f"Persona generation failed. Detail: {exc}")
-                return
->>>>>>> f68520b (Save local changes)
+                    progress.progress(
+                        90,
+                        text="Scoring quality and population diversity",
+                    )
+
+                st.session_state.setdefault("cached_personas_store", {})[exp_sig] = (
+                    generated_personas
+                )
+                record_performance_metric(
+                    "persona_generation",
+                    time.time() - start_time,
+                    cache_hit=False,
+                )
+        except Exception as exc:
+            st.error(f"Persona generation failed. Detail: {exc}")
+            return
+
 
         if not generated_personas:
             st.error("No personas were generated. Please review the inputs and try again.")
@@ -388,21 +377,25 @@ def render_workspace() -> None:
 
         save_personas(generated_personas)
         save_experiment_snapshot(experiment_payload, generated_personas)
-<<<<<<< HEAD
-        progress.progress(100, text="Personas ready")
-
-        if generator.from_cache:
-            st.info("⚡ **Loaded from cache** — Identical experiment signature detected; Gemini API call avoided.")
-        else:
-            st.success(f"Successfully generated {len(generated_personas)} synthetic personas ({generator.generation_source}).")
-
-        if generator.last_error:
-=======
-        if 'progress' in locals():
+        if "progress" in locals():
             progress.progress(100, text="Personas ready")
-        st.success(f"Successfully generated {len(generated_personas)} personas. Population Diversity Score: {div_report.diversity_score}/100")
-        if 'generator' in locals() and generator.last_error:
->>>>>>> f68520b (Save local changes)
+
+        if generator is not None:
+            source = getattr(generator, "generation_source", "Gemini")
+            last_error = getattr(generator, "last_error", None)
+            st.success(
+                f"Successfully generated {len(generated_personas)} synthetic personas "
+                f"({source}). Population Diversity Score: {div_report.diversity_score}/100"
+            )
+            if last_error:
+                st.warning(last_error)
+        else:
+            st.success(
+                f"Successfully loaded {len(generated_personas)} cached synthetic personas. "
+                f"Population Diversity Score: {div_report.diversity_score}/100"
+            )
+
+
             st.warning(generator.last_error)
 
         st.page_link("pages/persona_cards.py", label="Open Persona Cards")

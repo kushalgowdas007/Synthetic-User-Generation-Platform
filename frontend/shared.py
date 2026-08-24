@@ -4,6 +4,7 @@ import json
 import re
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
+from html import escape
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -26,14 +27,14 @@ PAGE_LINKS = [
 ]
 
 RESEARCH_STAGES = [
-    ("Workspace", "Brief & Setup"),
-    ("Persona Cards", "Personas"),
-    ("Survey", "Survey"),
-    ("Interview", "Interviews"),
-    ("Focus Group", "Focus Group"),
-    ("Insights", "Insights"),
-    ("Product Consultant", "Action Plan"),
-    ("Dashboard", "Executive Decision"),
+    "Brief",
+    "Personas",
+    "Survey",
+    "Interview",
+    "Focus Group",
+    "Insights",
+    "Actions",
+    "Decision",
 ]
 
 
@@ -46,16 +47,13 @@ def init_session_state() -> None:
     st.session_state.setdefault("persona_memories", {})
     st.session_state.setdefault("interview_results", [])
     st.session_state.setdefault("insights", None)
-    st.session_state.setdefault("product_actions", None)
     st.session_state.setdefault("research_plan", None)
     st.session_state.setdefault("focus_group_results", [])
     st.session_state.setdefault("consultant_report", None)
     st.session_state.setdefault("product_actions", [])
     st.session_state.setdefault("state_version", 1)
     st.session_state.setdefault("toast_message", "")
-    st.session_state.setdefault("state_version", 1.0)
     st.session_state.setdefault("experiment_signature", "")
-
 
 
 def increment_state_version() -> int:
@@ -85,50 +83,22 @@ def apply_premium_theme() -> None:
     .timeline-container { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:1.2rem; }
     .timeline-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid #334155; background:rgba(30,41,59,0.7); color:#94a3b8; }
     .timeline-pill.completed { border-color:#10b981; background:rgba(16,185,129,0.12); color:#34d399; }
-    .timeline-pill.active { border-color:#6366f1; background:rgba(99,102,241,0.22); color:#818cf8; box-shadow:0 0 12px rgba(99,102,241,0.3); }
+    .timeline-pill.current { border-color:#6366f1; background:rgba(99,102,241,0.22); color:#818cf8; box-shadow:0 0 12px rgba(99,102,241,0.3); }
+    .timeline-state { opacity:.95; }
+    .timeline-label { color:inherit; }
     .synthetic-badge { display:inline-block; font-size:11px; padding:3px 8px; border-radius:6px; background:#1e293b; color:#94a3b8; border:1px solid #475569; }
     </style>""",
         unsafe_allow_html=True,
     )
 
 
-def render_research_timeline(active_stage: str) -> None:
-    """Renders an interactive visual progress tracker across the research lifecycle."""
-    personas = get_personas()
-    survey = get_survey_results()
-    interviews = get_interview_results()
-    focus = st.session_state.get("focus_group_results", [])
-    insights = get_insights()
-    consultant = st.session_state.get("consultant_report")
-
-    stage_status: Dict[str, str] = {
-        "Workspace": "completed" if personas else ("active" if active_stage == "Workspace" else "pending"),
-        "Persona Cards": "completed" if personas else "pending",
-        "Survey": "completed" if survey else ("active" if active_stage == "Survey" else "pending"),
-        "Interview": "completed" if interviews else ("active" if active_stage == "Interview" else "pending"),
-        "Focus Group": "completed" if focus else ("active" if active_stage == "Focus Group" else "pending"),
-        "Insights": "completed" if insights else ("active" if active_stage == "Insights" else "pending"),
-        "Product Consultant": "completed" if consultant else ("active" if active_stage == "Product Consultant" else "pending"),
-        "Dashboard": "completed" if (personas and survey and insights) else ("active" if active_stage == "Dashboard" else "pending"),
-    }
-
-    cols = st.columns(len(RESEARCH_STAGES))
-    for col, (stage_id, label) in zip(cols, RESEARCH_STAGES):
-        status = stage_status.get(stage_id, "pending")
-        if stage_id == active_stage:
-            status = "active"
-        
-        icon = "✓" if status == "completed" and stage_id != active_stage else ("●" if status == "active" else "○")
-        with col:
-            st.markdown(
-                f'<div class="timeline-pill {status}"><span>{icon}</span> <span>{label}</span></div>',
-                unsafe_allow_html=True,
-            )
-
-
 def render_synthetic_disclaimer() -> None:
     """Renders a mandatory audit and transparency disclaimer for synthetic research outputs."""
-    st.caption("◈ **Synthetic Data & AI Simulation Notice**: All participant responses, quotes, and scores are generated through synthetic persona modeling for product discovery. Validate critical findings with real users prior to commercial launch.")
+    st.caption(
+        "Synthetic Data & AI Simulation Notice: All participant responses, quotes, and scores "
+        "are generated through synthetic persona modeling for product discovery. Validate "
+        "critical findings with real users prior to commercial launch."
+    )
 
 
 def get_personas() -> List[Dict[str, Any]]:
@@ -263,7 +233,7 @@ def render_sidebar(active_label: str) -> None:
     responses = survey_results.get("responses", []) if survey_results else []
 
     with st.sidebar:
-        st.title("◈ AI Research Studio")
+        st.title("AI Research Studio")
         st.caption("From research brief to launch decision")
         for path, label in PAGE_LINKS:
             prefix = ">" if label == active_label else ""
@@ -285,61 +255,122 @@ def render_sidebar(active_label: str) -> None:
             st.warning("Start in Workspace")
 
 
-<<<<<<< HEAD
-def render_page_header(title: str, caption: str, active_stage: Optional[str] = None) -> None:
-    apply_professional_theme()
-    apply_premium_theme()
-    st.markdown(f'<div class="research-hero"><h1>{title}</h1><p>{caption}</p></div>', unsafe_allow_html=True)
-    if active_stage:
-        render_research_timeline(active_stage)
-=======
+def _state_get(key: str, default: Any = None) -> Any:
+    try:
+        return st.session_state.get(key, default)
+    except Exception:
+        return default
+
+
+def _has_payload(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, pd.DataFrame):
+        return not value.empty
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set)):
+        return len(value) > 0
+    if isinstance(value, str):
+        return bool(value.strip())
+    try:
+        return bool(value)
+    except Exception:
+        return False
+
+
+def _normalized_stage(current_step: str) -> str:
+    normalized = re.sub(r"\s+", " ", str(current_step or "").strip().lower())
+    aliases = {
+        "workspace": "Brief",
+        "home": "Brief",
+        "home / workspace": "Brief",
+        "brief & setup": "Brief",
+        "research copilot": "Brief",
+        "persona": "Personas",
+        "persona cards": "Personas",
+        "interviews": "Interview",
+        "interview mode": "Interview",
+        "action center": "Actions",
+        "product consultant": "Actions",
+        "executive product strategy": "Actions",
+        "dashboard": "Decision",
+        "executive dashboard": "Decision",
+        "executive research dashboard": "Decision",
+    }
+    if normalized in aliases:
+        return aliases[normalized]
+    for stage in RESEARCH_STAGES:
+        if normalized == stage.lower():
+            return stage
+    return ""
+
+
 def render_research_timeline(current_step: str = "") -> None:
-    """Render Phase 13 Research Session Timeline with status indicators."""
-    steps = [
-        ("Brief", bool(get_experiment())),
-        ("Personas", bool(get_personas())),
-        ("Survey", bool(get_survey_results())),
-        ("Interview", bool(get_interview_results())),
-        ("Focus Group", bool(st.session_state.get("focus_group_results"))),
-        ("Insights", bool(get_insights())),
-        ("Actions", bool(st.session_state.get("product_actions"))),
-        ("Decision", bool(st.session_state.get("consultant_report"))),
-    ]
+    """Render the research lifecycle timeline from real session-state payloads only."""
+    experiment = get_experiment()
+    personas = get_personas()
+    survey = get_survey_results()
+    interviews = get_interview_results()
+    focus_group = _state_get("focus_group_results", [])
+    insights = get_insights()
+    actions = _state_get("product_actions", [])
+    decision = (
+        _state_get("consultant_report")
+        or _state_get("product_decision")
+        or _state_get("product_decisions")
+    )
+
+    completed = {
+        "Brief": _has_payload(experiment),
+        "Personas": _has_payload(personas),
+        "Survey": _has_payload(survey),
+        "Interview": _has_payload(interviews),
+        "Focus Group": _has_payload(focus_group),
+        "Insights": _has_payload(insights),
+        "Actions": _has_payload(actions),
+        "Decision": _has_payload(decision),
+    }
+    active_stage = _normalized_stage(current_step)
+    status_text = {
+        "completed": "&#10003; completed",
+        "current": "&#9679; current",
+        "pending": "&#9675; pending",
+    }
 
     pills_html = []
-    for label, is_complete in steps:
-        if label.lower() == current_step.lower():
-            status_icon = "●"
-            color = "#7c8cff"
-            bg = "#1e295d"
-        elif is_complete:
-            status_icon = "✓"
-            color = "#10b981"
-            bg = "#064e3b"
-        else:
-            status_icon = "○"
-            color = "#9aa8c1"
-            bg = "#11192d"
-
+    for stage in RESEARCH_STAGES:
+        status = "current" if stage == active_stage else "completed" if completed[stage] else "pending"
         pills_html.append(
-            f'<span style="background:{bg}; color:{color}; border:1px solid {color}44; '
-            f'padding:3px 8px; border-radius:12px; font-size:0.75rem; margin-right:4px;">'
-            f'{status_icon} {label}</span>'
+            f'<span class="timeline-pill {status}">'
+            f'<span class="timeline-state">{status_text[status]}</span>'
+            f'<span class="timeline-label">{escape(stage)}</span>'
+            "</span>"
         )
 
-    st.markdown('<div style="margin-bottom:12px;">' + "".join(pills_html) + '</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="timeline-container">' + "".join(pills_html) + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
-def render_page_header(title: str, caption: str) -> None:
+def render_page_header(
+    title: str,
+    caption: str,
+    active_stage: Optional[str] = None,
+) -> None:
     apply_professional_theme()
     apply_premium_theme()
-    st.markdown(f'<div class="research-hero"><h1>{title}</h1><p>{caption}</p></div>', unsafe_allow_html=True)
-    render_research_timeline(title.split()[0])
->>>>>>> f68520b (Save local changes)
+    st.markdown(
+        f'<div class="research-hero"><h1>{escape(title)}</h1><p>{escape(caption)}</p></div>',
+        unsafe_allow_html=True,
+    )
+    if active_stage:
+        render_research_timeline(active_stage)
+
     message = st.session_state.pop("toast_message", "")
     if message:
-        st.toast(message, icon="✨")
-
+        st.toast(message)
 
 
 def as_text(value: Any, default: str = "Not provided") -> str:

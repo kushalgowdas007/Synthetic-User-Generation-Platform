@@ -1,0 +1,11 @@
+faker==40.28.1
+streamlit>=1.36.0
+pandas>=2.2.0
+plotly>=5.24.0
+reportlab>=4.2.0
+pytest>=8.0.0
+google-genai>=1.0.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+fastapi>=0.115.0
+uvicorn>=0.30.0

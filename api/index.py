@@ -96,22 +96,11 @@ def api_root():
 
 @app.get("/api/health")
 def health():
-    """
-    Health endpoint.
-
-    gemini_key_present only indicates whether the environment
-    variable exists. It never returns the secret value.
-    """
     return {
         "status": "ok",
         "engine": "fastapi",
         "gemini_configured": gemini_is_configured(),
-        "gemini_key_present": "GEMINI_API_KEY" in os.environ,
-        "google_key_present": "GOOGLE_API_KEY" in os.environ,
-        "vercel_env": os.getenv(
-            "VERCEL_ENV",
-            "local",
-        ),
+        "vercel_env": os.getenv("VERCEL_ENV", "local"),
     }
 
 

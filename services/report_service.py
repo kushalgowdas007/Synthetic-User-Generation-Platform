@@ -117,6 +117,26 @@ def _fallback_lines(
     ]
 
 
+def export_markdown_report(
+    *,
+    experiment: Mapping[str, Any],
+    personas: Sequence[Mapping[str, Any]],
+    survey_results: Mapping[str, Any] | None,
+    interview_rows: Sequence[Mapping[str, Any]],
+    insights: Mapping[str, Any] | None,
+    consultant_report: Mapping[str, Any] | None = None,
+) -> str:
+    lines = _fallback_lines(
+        experiment=experiment,
+        personas=personas,
+        survey_results=survey_results,
+        interview_rows=interview_rows,
+        insights=insights,
+        consultant_report=consultant_report,
+    )
+    return "\n".join(lines)
+
+
 def export_full_research_report_pdf(
     *,
     experiment: Mapping[str, Any],
